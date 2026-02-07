@@ -60,7 +60,7 @@ export function SectionCards() {
             <div className="flex flex-row items-start justify-between mb-6">
               <div>
                 <h2 className="text-l text-muted-foreground tracking-tight mb-2">Your link</h2>
-                <p className="text-2xl font-bold tracking-tight">plottwist.app/@dmajor</p>
+                <p className="text-2xl font-bold tracking-tight">plottwist.pro/@dmajor</p>
               </div>
               <div className="flex gap-2">
                 <button className="px-3 py-1.5 text-xs font-medium text-foreground border border-input rounded-lg hover:bg-accent transition-colors whitespace-nowrap">
