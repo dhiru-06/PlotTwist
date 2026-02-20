@@ -92,6 +92,7 @@ export function ShelfPage() {
   const [selectedBook, setSelectedBook] = useState<Book | null>(null)
   const [showSettings, setShowSettings] = useState(false)
   const [theme, setTheme] = useState<"light" | "dark" | "vintage">("light")
+  const [hoveredBook, setHoveredBook] = useState<{ shelfIndex: number; bookIndex: number } | null>(null)
   const [customHeader, setCustomHeader] = useState("")
   const [showCustomHeader, setShowCustomHeader] = useState(false)
   const [socialLinks, setSocialLinks] = useState<SocialLink[]>([
@@ -288,112 +289,100 @@ export function ShelfPage() {
                   {/* Books on this shelf */}
                   <div className="flex gap-3 items-end pb-6 justify-start">
                     {shelf.map((book, index) => (
+                      (() => {
+                        const isHovered = hoveredBook?.shelfIndex === shelfIndex && hoveredBook?.bookIndex === index
+                        const shouldShiftRight =
+                          hoveredBook?.shelfIndex === shelfIndex && hoveredBook.bookIndex < index
+
+                        return (
                       <div
                         key={book.id}
+                        onMouseEnter={() => setHoveredBook({ shelfIndex, bookIndex: index })}
+                        onMouseLeave={() => setHoveredBook(null)}
                         onClick={() => setSelectedBook(book)}
-                        className="book-container group cursor-pointer relative transition-all duration-700"
+                        className={`book-container cursor-pointer relative transition-all duration-700 ${
+                          isHovered ? "z-30" : "z-10"
+                        }`}
                         style={{
                           perspective: "2000px",
                           animationDelay: `${index * 100}ms`,
+                          transform: shouldShiftRight ? "translateX(136px)" : "translateX(0)",
                         }}
                       >
-                        {/* Book Spine (default vertical view) */}
-                        <div
-                          className={`relative w-10 h-52 bg-gradient-to-r ${book.color} rounded-sm shadow-lg transition-all duration-700 group-hover:opacity-0`}
-                          style={{
-                            boxShadow: "4px 4px 12px rgba(0,0,0,0.3), inset -2px 0 4px rgba(0,0,0,0.2)",
-                          }}
-                        >
-                          {/* Book texture */}
-                          <div className="absolute inset-0 opacity-20" style={{
-                            backgroundImage: `
-                              repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,0.05) 2px, rgba(255,255,255,0.05) 4px),
-                              repeating-linear-gradient(90deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px)
-                            `
-                          }}></div>
-                          
-                          {/* Glossy overlay */}
-                          <div className="absolute inset-0 bg-gradient-to-r from-white/20 via-transparent to-black/20 rounded-sm"></div>
-                          
-                          {/* Spine text */}
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <div className="writing-mode-vertical text-white font-bold text-sm px-2 text-center drop-shadow-lg" style={{
-                              textShadow: "2px 2px 4px rgba(0,0,0,0.5)"
-                            }}>
-                              {book.title}
-                            </div>
-                          </div>
-                          
-                          {/* Spine edge highlight */}
-                          <div className="absolute left-0 top-0 bottom-0 w-1 bg-white/30 rounded-l-sm"></div>
-                          <div className="absolute right-0 top-0 bottom-0 w-1 bg-black/30 rounded-r-sm"></div>
-                        </div>
+                        {/* 3D Book - spine forward by default, face rotates in on hover */}
+                        <div className="relative w-10 h-52" style={{ transformStyle: "preserve-3d" }}>
+                          {/* Book Spine (default visible) */}
+                          <div
+                            className={`book-spine relative w-10 h-52 bg-gradient-to-r ${book.color} rounded-sm shadow-lg`}
+                            style={{
+                              boxShadow: "4px 4px 12px rgba(0,0,0,0.3), inset -2px 0 4px rgba(0,0,0,0.2)",
+                            }}
+                          >
+                            {/* Book texture */}
+                            <div className="absolute inset-0 opacity-20" style={{
+                              backgroundImage: `
+                                repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,0.05) 2px, rgba(255,255,255,0.05) 4px),
+                                repeating-linear-gradient(90deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px)
+                              `
+                            }}></div>
 
-                        {/* 3D Book (shown on hover) */}
-                        <div
-                          className="absolute bottom-0 left-0 opacity-0 group-hover:opacity-100 transition-all duration-700 ease-out"
-                          style={{
-                            transformStyle: "preserve-3d",
-                            transform: "rotateY(45deg)",
-                          }}
-                        >
-                          <div style={{ transformStyle: "preserve-3d" }}>
-                            {/* Front Cover */}
-                            <div
-                              className={`w-32 h-52 bg-gradient-to-br ${book.color} shadow-2xl overflow-hidden relative`}
-                              style={{
-                                transformStyle: "preserve-3d",
-                                borderRadius: "0 4px 4px 0",
-                                boxShadow: "10px 10px 30px rgba(0,0,0,0.5), inset 0 0 20px rgba(255,255,255,0.1)",
-                              }}
-                            >
-                              {/* Texture */}
-                              <div className="absolute inset-0 opacity-25" style={{
-                                backgroundImage: `
-                                  repeating-linear-gradient(90deg, transparent, transparent 1px, rgba(255,255,255,0.02) 1px, rgba(255,255,255,0.02) 2px),
-                                  repeating-linear-gradient(0deg, transparent, transparent 1px, rgba(0,0,0,0.02) 1px, rgba(0,0,0,0.02) 2px)
-                                `
-                              }}></div>
-                              
-                              {/* Lighting effect */}
-                              <div className="absolute inset-0 bg-gradient-to-br from-white/30 via-transparent to-black/30 opacity-60"></div>
-                              
-                              {/* Content */}
-                              <div className="relative z-10 h-full flex flex-col items-center justify-center p-4 text-white text-center">
-                                <div className="space-y-2">
-                                  <h3 className="font-bold text-base leading-tight tracking-wide" style={{
-                                    textShadow: "2px 2px 8px rgba(0,0,0,0.8)"
-                                  }}>{book.title}</h3>
-                                  <div className="h-px w-12 bg-white/40 mx-auto"></div>
-                                  <p className="text-xs tracking-wider opacity-95" style={{
-                                    textShadow: "1px 1px 4px rgba(0,0,0,0.6)"
-                                  }}>{book.author}</p>
-                                </div>
-                                <div className="mt-auto flex items-center gap-1">
-                                  <div className="text-xl">★</div>
-                                  <div className="text-base font-bold">{book.rating}</div>
-                                </div>
+                            {/* Glossy overlay */}
+                            <div className="absolute inset-0 bg-gradient-to-r from-white/20 via-transparent to-black/20 rounded-sm"></div>
+
+                            {/* Spine text */}
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <div className="writing-mode-vertical text-white font-bold text-sm px-2 text-center drop-shadow-lg" style={{
+                                textShadow: "2px 2px 4px rgba(0,0,0,0.5)"
+                              }}>
+                                {book.title}
                               </div>
                             </div>
 
-                            {/* Spine (left side) - matches the width of vertical spine */}
-                            <div
-                              className={`absolute top-0 left-0 w-10 h-52 bg-gradient-to-b ${book.color}`}
-                              style={{
-                                transformOrigin: "left center",
-                                transform: "rotateY(-90deg)",
-                                filter: "brightness(0.5)",
-                                boxShadow: "inset -3px 0 6px rgba(0,0,0,0.5)",
-                              }}
-                            >
-                              {/* Spine texture */}
-                              <div className="absolute inset-0" style={{
-                                backgroundImage: "repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,0,0,0.1) 3px, rgba(0,0,0,0.1) 4px)"
-                              }}></div>
+                            {/* Spine edge highlight */}
+                            <div className="absolute left-0 top-0 bottom-0 w-1 bg-white/30 rounded-l-sm"></div>
+                            <div className="absolute right-0 top-0 bottom-0 w-1 bg-black/30 rounded-r-sm"></div>
+                          </div>
+
+                          {/* Front Cover (rotates into view on hover) */}
+                          <div
+                            className={`book-face absolute top-0 left-[9px] w-32 h-52 bg-gradient-to-br ${book.color} shadow-2xl overflow-hidden`}
+                            style={{
+                              borderRadius: "0 4px 4px 0",
+                              boxShadow: "10px 10px 30px rgba(0,0,0,0.5), inset 0 0 20px rgba(255,255,255,0.1)",
+                            }}
+                          >
+                            {/* Texture */}
+                            <div className="absolute inset-0 opacity-25" style={{
+                              backgroundImage: `
+                                repeating-linear-gradient(90deg, transparent, transparent 1px, rgba(255,255,255,0.02) 1px, rgba(255,255,255,0.02) 2px),
+                                repeating-linear-gradient(0deg, transparent, transparent 1px, rgba(0,0,0,0.02) 1px, rgba(0,0,0,0.02) 2px)
+                              `
+                            }}></div>
+
+                            {/* Lighting effect */}
+                            <div className="absolute inset-0 bg-gradient-to-br from-white/30 via-transparent to-black/30 opacity-60"></div>
+
+                            {/* Content */}
+                            <div className="relative z-10 h-full flex flex-col items-center justify-center p-4 text-white text-center">
+                              <div className="space-y-2">
+                                <h3 className="font-bold text-base leading-tight tracking-wide" style={{
+                                  textShadow: "2px 2px 8px rgba(0,0,0,0.8)"
+                                }}>{book.title}</h3>
+                                <div className="h-px w-12 bg-white/40 mx-auto"></div>
+                                <p className="text-xs tracking-wider opacity-95" style={{
+                                  textShadow: "1px 1px 4px rgba(0,0,0,0.6)"
+                                }}>{book.author}</p>
+                              </div>
+                              <div className="mt-auto flex items-center gap-1">
+                                <div className="text-xl">★</div>
+                                <div className="text-base font-bold">{book.rating}</div>
+                              </div>
                             </div>
                           </div>
                         </div>
                       </div>
+                        )
+                      })()
                     ))}
                   </div>
 
@@ -495,6 +484,29 @@ export function ShelfPage() {
         .book-container {
           animation: fadeInUp 0.6s ease-out forwards;
           opacity: 0;
+        }
+
+        .book-spine,
+        .book-face {
+          backface-visibility: hidden;
+          transition: transform 700ms cubic-bezier(0.22, 1, 0.36, 1), opacity 500ms ease, filter 500ms ease;
+        }
+
+        .book-face {
+          transform-origin: left center;
+          transform: rotateY(-95deg);
+          filter: brightness(0.85);
+        }
+
+        .book-container:hover .book-spine {
+          transform: rotateY(75deg);
+          opacity: 0.18;
+          filter: brightness(0.7);
+        }
+
+        .book-container:hover .book-face {
+          transform: rotateY(0deg) translateX(6px);
+          filter: brightness(1);
         }
       `}</style>
     </div>

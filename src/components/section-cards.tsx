@@ -1,15 +1,12 @@
-import { IconTrendingDown, IconTrendingUp } from "@tabler/icons-react"
 import { useNavigate } from "react-router-dom"
 
-import { Badge } from "@/components/ui/badge"
 import {
   Card,
-  CardAction,
-  CardDescription,
   CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { BookSearch } from "@/components/book-search"
 import bookStackImage from "@/assets/book2.png"
 
 export function SectionCards() {
@@ -28,16 +25,7 @@ export function SectionCards() {
           </div>
         </CardHeader>
         <CardFooter className="flex-col items-stretch gap-4 mt-auto">
-          <div className="flex gap-2 w-full">
-            <input
-              type="text"
-              placeholder="Search books (try: circe, ishiguro, fantasy...)"
-              className="flex-1 px-4 py-3 rounded-lg border border-input bg-background text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-            />
-            <button className="px-6 py-3 bg-primary text-primary-foreground rounded-lg font-medium text-sm hover:bg-primary/90 transition-colors">
-              Browse
-            </button>
-          </div>
+          <BookSearch />
           <div className="grid grid-cols-3 gap-3">
             <div className="p-4 border border-input rounded-lg">
               <div className="text-sm font-semibold mb-1">Shelf views</div>

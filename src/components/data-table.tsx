@@ -31,6 +31,7 @@ import {
   IconLoader,
   IconPlus,
   IconTrendingUp,
+  IconX,
 } from "@tabler/icons-react"
 import {
   flexRender,
@@ -339,7 +340,23 @@ export function DataTable({
 }: {
   data: z.infer<typeof schema>[]
 }) {
+  const baseViews = React.useMemo(
+    () => [
+      { value: "outline", label: "Outline" },
+      { value: "past-performance", label: "Past Performance" },
+      { value: "key-personnel", label: "Key Personnel" },
+      { value: "focus-documents", label: "Focus Documents" },
+    ],
+    []
+  )
+
   const [data, setData] = React.useState(() => initialData)
+  const [activeView, setActiveView] = React.useState("outline")
+  const [customViews, setCustomViews] = React.useState<
+    { value: string; label: string }[]
+  >([])
+  const [editingViewId, setEditingViewId] = React.useState<string | null>(null)
+  const [editingViewLabel, setEditingViewLabel] = React.useState("")
   const [rowSelection, setRowSelection] = React.useState({})
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>({})
@@ -399,16 +416,71 @@ export function DataTable({
     }
   }
 
+  function handleAddSection() {
+    const nextIndex = customViews.length + 1
+    const nextView = {
+      value: `custom-section-${Date.now()}`,
+      label: `Custom Section ${nextIndex}`,
+    }
+
+    setCustomViews((prev) => [...prev, nextView])
+    setActiveView(nextView.value)
+    setEditingViewId(nextView.value)
+    setEditingViewLabel(nextView.label)
+  }
+
+  function handleDeleteSection(value: string) {
+    setCustomViews((prev) => prev.filter((view) => view.value !== value))
+
+    if (editingViewId === value) {
+      setEditingViewId(null)
+      setEditingViewLabel("")
+    }
+
+    if (activeView === value) {
+      setActiveView("outline")
+    }
+  }
+
+  function handleStartRenameSection(value: string, label: string) {
+    setEditingViewId(value)
+    setEditingViewLabel(label)
+  }
+
+  function handleSaveRenameSection() {
+    if (!editingViewId) return
+
+    const trimmedLabel = editingViewLabel.trim()
+    if (!trimmedLabel) return
+
+    setCustomViews((prev) =>
+      prev.map((view) =>
+        view.value === editingViewId ? { ...view, label: trimmedLabel } : view
+      )
+    )
+
+    setEditingViewId(null)
+    setEditingViewLabel("")
+  }
+
+  function handleCancelRenameSection() {
+    setEditingViewId(null)
+    setEditingViewLabel("")
+  }
+
+  const allViews = [...baseViews, ...customViews]
+
   return (
     <Tabs
-      defaultValue="outline"
+      value={activeView}
+      onValueChange={setActiveView}
       className="w-full flex-col justify-start gap-6"
     >
       <div className="flex items-center justify-between px-4 lg:px-6">
         <Label htmlFor="view-selector" className="sr-only">
           View
         </Label>
-        <Select defaultValue="outline">
+        <Select value={activeView} onValueChange={setActiveView}>
           <SelectTrigger
             className="flex w-fit @4xl/main:hidden"
             size="sm"
@@ -417,57 +489,128 @@ export function DataTable({
             <SelectValue placeholder="Select a view" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="outline">Outline</SelectItem>
-            <SelectItem value="past-performance">Past Performance</SelectItem>
-            <SelectItem value="key-personnel">Key Personnel</SelectItem>
-            <SelectItem value="focus-documents">Focus Documents</SelectItem>
+            {baseViews.map((view) => (
+              <SelectItem key={view.value} value={view.value}>
+                {view.label}
+              </SelectItem>
+            ))}
+            {customViews.map((view) => (
+              <SelectItem key={view.value} value={view.value}>
+                {view.label}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
         <TabsList className="**:data-[slot=badge]:bg-muted-foreground/30 hidden **:data-[slot=badge]:size-5 **:data-[slot=badge]:rounded-full **:data-[slot=badge]:px-1 @4xl/main:flex">
-          <TabsTrigger value="outline">Outline</TabsTrigger>
-          <TabsTrigger value="past-performance">
-            Past Performance <Badge variant="secondary">3</Badge>
-          </TabsTrigger>
-          <TabsTrigger value="key-personnel">
-            Key Personnel <Badge variant="secondary">2</Badge>
-          </TabsTrigger>
-          <TabsTrigger value="focus-documents">Focus Documents</TabsTrigger>
+          {allViews.map((view) => (
+            <TabsTrigger key={view.value} value={view.value}>
+              {view.label}
+              {view.value === "past-performance" && (
+                <Badge variant="secondary">3</Badge>
+              )}
+              {view.value === "key-personnel" && (
+                <Badge variant="secondary">2</Badge>
+              )}
+            </TabsTrigger>
+          ))}
         </TabsList>
         <div className="flex items-center gap-2">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm">
-                <IconLayoutColumns />
-                <span className="hidden lg:inline">Customize Columns</span>
-                <span className="lg:hidden">Columns</span>
-                <IconChevronDown />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              {table
-                .getAllColumns()
-                .filter(
-                  (column) =>
-                    typeof column.accessorFn !== "undefined" &&
-                    column.getCanHide()
-                )
-                .map((column) => {
-                  return (
-                    <DropdownMenuCheckboxItem
-                      key={column.id}
-                      className="capitalize"
-                      checked={column.getIsVisible()}
-                      onCheckedChange={(value) =>
-                        column.toggleVisibility(!!value)
-                      }
-                    >
-                      {column.id}
-                    </DropdownMenuCheckboxItem>
-                  )
-                })}
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <Button variant="outline" size="sm">
+          {customViews.length > 0 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm">
+                  Manage Sections
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-80 p-2">
+                <div className="space-y-2">
+                  {customViews.map((view) => {
+                    const isEditing = editingViewId === view.value
+
+                    return (
+                      <div
+                        key={view.value}
+                        className="bg-background flex items-center gap-2 rounded-md border p-2"
+                      >
+                        {isEditing ? (
+                          <Input
+                            value={editingViewLabel}
+                              onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
+                              setEditingViewLabel(event.target.value)
+                            }
+                              onKeyDown={(event: React.KeyboardEvent<HTMLInputElement>) => {
+                              if (event.key === "Enter") {
+                                event.preventDefault()
+                                handleSaveRenameSection()
+                              }
+                            }}
+                            autoFocus
+                            className="h-8"
+                          />
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setActiveView(view.value)}
+                            className="hover:text-foreground flex-1 truncate text-left text-sm"
+                          >
+                            {view.label}
+                          </button>
+                        )}
+
+                        {isEditing ? (
+                          <>
+                            <Button
+                              type="button"
+                              size="sm"
+                              className="h-8 px-2"
+                              onClick={handleSaveRenameSection}
+                            >
+                              Save
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 px-2"
+                              onClick={handleCancelRenameSection}
+                            >
+                              Cancel
+                            </Button>
+                          </>
+                        ) : (
+                          <>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 px-2"
+                              onClick={() =>
+                                handleStartRenameSection(view.value, view.label)
+                              }
+                            >
+                              Rename
+                            </Button>
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                              aria-label={`Delete ${view.label}`}
+                              onClick={() => handleDeleteSection(view.value)}
+                            >
+                              <IconX className="size-4" />
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+
+          <Button variant="outline" size="sm" onClick={handleAddSection}>
             <IconPlus />
             <span className="hidden lg:inline">Add Section</span>
           </Button>
@@ -621,6 +764,17 @@ export function DataTable({
       >
         <div className="aspect-video w-full flex-1 rounded-lg border border-dashed"></div>
       </TabsContent>
+      {customViews.map((view) => (
+        <TabsContent
+          key={view.value}
+          value={view.value}
+          className="flex flex-col px-4 lg:px-6"
+        >
+          <div className="aspect-video w-full flex-1 rounded-lg border border-dashed p-6">
+            <div className="text-muted-foreground text-sm">{view.label}</div>
+          </div>
+        </TabsContent>
+      ))}
     </Tabs>
   )
 }
