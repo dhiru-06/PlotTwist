@@ -5,6 +5,7 @@ import './index.css'
 import { AuthProvider } from '@/contexts/AuthProvider'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { AuthCallback } from '@/pages/AuthCallback'
+import { PublicShelf } from '@/pages/PublicShelf'
 import App from './App.tsx'
 import { ShelfPage } from './components/shelf-page'
 import { LoginForm } from './components/sign-in.tsx'
@@ -17,6 +18,7 @@ createRoot(document.getElementById('root')!).render(
           {/* Public Routes */}
           <Route path="/sign-in" element={<LoginForm />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
+          <Route path="/@:username" element={<PublicShelf />} />
 
           {/* Protected Routes */}
           <Route
