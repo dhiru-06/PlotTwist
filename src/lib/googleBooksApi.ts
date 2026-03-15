@@ -1,6 +1,11 @@
 const GOOGLE_BOOKS_API_KEY = import.meta.env.VITE_GOOGLE_BOOKS_API_KEY
 const BASE_URL = "https://www.googleapis.com/books/v1/volumes"
 
+function normalizeGoogleBookCoverUrl(url?: string) {
+  if (!url) return ""
+  return url.replace(/^http:\/\//i, "https://")
+}
+
 export interface BookResult {
   id: string
   title: string
@@ -38,7 +43,7 @@ export async function searchBooks(query: string): Promise<BookResult[]> {
       title: item.volumeInfo.title || "Unknown Title",
       author: item.volumeInfo.authors?.join(", ") || "Unknown Author",
       description: item.volumeInfo.description || "No description available",
-      coverUrl: item.volumeInfo.imageLinks?.thumbnail || "",
+      coverUrl: normalizeGoogleBookCoverUrl(item.volumeInfo.imageLinks?.thumbnail),
       publishedDate: item.volumeInfo.publishedDate || "",
       pageCount: item.volumeInfo.pageCount || 0,
       averageRating: item.volumeInfo.averageRating || 0,

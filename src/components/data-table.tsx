@@ -24,11 +24,12 @@ import {
   IconChevronsLeft,
   IconChevronsRight,
   IconCircleCheckFilled,
+  IconDeviceFloppy,
   IconDotsVertical,
   IconGripVertical,
   IconLoader,
-  IconPlus,
   IconSettings2,
+  IconTrash,
   IconTrendingUp,
   IconX,
 } from "@tabler/icons-react"
@@ -137,6 +138,21 @@ type SectionBookRecord = {
   cover_url: string | null
   rating: number | null
   notes: string | null
+}
+
+function clearShelfCache() {
+  try {
+    const keysToRemove: string[] = []
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index)
+      if (key?.startsWith("plottwist:shelf-cache:")) {
+        keysToRemove.push(key)
+      }
+    }
+    keysToRemove.forEach((key) => localStorage.removeItem(key))
+  } catch {
+    // Ignore storage cleanup errors.
+  }
 }
 
 // Create a separate component for the drag handle
@@ -589,6 +605,8 @@ export function DataTable({
       return
     }
 
+    clearShelfCache()
+    window.dispatchEvent(new CustomEvent("section-books-changed"))
     toast.success("Book updated")
   }
 
@@ -609,7 +627,9 @@ export function DataTable({
       return
     }
 
+    clearShelfCache()
     setSectionBooks((prev) => prev.filter((book) => book.id !== bookId))
+    window.dispatchEvent(new CustomEvent("section-books-changed"))
     toast.success("Book removed")
   }
 
@@ -778,6 +798,8 @@ export function DataTable({
 
       setCustomViews((prev) => [...prev, nextView])
       setActiveView(nextView.value)
+      clearShelfCache()
+      window.dispatchEvent(new CustomEvent("sections-changed"))
       setIsSubmittingSection(false)
       toast.success("Section created")
       resetSectionForm()
@@ -836,6 +858,8 @@ export function DataTable({
     )
 
     setIsSubmittingSection(false)
+    clearShelfCache()
+    window.dispatchEvent(new CustomEvent("sections-changed"))
     toast.success("Section updated")
     resetSectionForm()
   }
@@ -872,6 +896,8 @@ export function DataTable({
       setActiveView(defaultViews[0]?.value ?? customViews[0]?.value ?? "")
     }
 
+    clearShelfCache()
+    window.dispatchEvent(new CustomEvent("sections-changed"))
     toast.success("Section deleted")
   }
 
@@ -1167,19 +1193,20 @@ export function DataTable({
                   <TableHead>Title</TableHead>
                   <TableHead className="w-24">Rating</TableHead>
                   <TableHead>Notes</TableHead>
-                  <TableHead className="w-12">Actions</TableHead>
+                  <TableHead className="w-16 text-center">Save</TableHead>
+                  <TableHead className="w-16 text-center">Delete</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isSectionBooksLoading ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-muted-foreground py-8 text-center">
+                    <TableCell colSpan={6} className="text-muted-foreground py-8 text-center">
                       Loading books...
                     </TableCell>
                   </TableRow>
                 ) : sectionBooks.filter((book) => book.section_id === view.value).length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-muted-foreground py-8 text-center">
+                    <TableCell colSpan={6} className="text-muted-foreground py-8 text-center">
                       No books in this section yet.
                     </TableCell>
                   </TableRow>
@@ -1232,30 +1259,30 @@ export function DataTable({
                           />
                         </TableCell>
                         <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-muted-foreground"
-                              >
-                                <IconDotsVertical className="h-4 w-4" />
-                                <span className="sr-only">Open row actions</span>
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => handleSaveSectionBook(book.id)}>
-                                Save changes
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                variant="destructive"
-                                onClick={() => handleDeleteSectionBook(book.id)}
-                              >
-                                Remove
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                          <div className="flex justify-center">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground"
+                              onClick={() => handleSaveSectionBook(book.id)}
+                              aria-label={`Save ${book.title}`}
+                            >
+                              <IconDeviceFloppy className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex justify-center">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                              onClick={() => handleDeleteSectionBook(book.id)}
+                              aria-label={`Delete ${book.title}`}
+                            >
+                              <IconTrash className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))

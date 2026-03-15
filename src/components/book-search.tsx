@@ -34,6 +34,21 @@ interface ExistingBookRow {
   google_book_id: string
 }
 
+function clearShelfCache() {
+  try {
+    const keysToRemove: string[] = []
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index)
+      if (key?.startsWith("plottwist:shelf-cache:")) {
+        keysToRemove.push(key)
+      }
+    }
+    keysToRemove.forEach((key) => localStorage.removeItem(key))
+  } catch {
+    // Ignore storage cleanup errors.
+  }
+}
+
 export function BookSearch() {
   const { user } = useAuth()
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -167,6 +182,7 @@ export function BookSearch() {
         return
       }
 
+      clearShelfCache()
       toast.success("Book moved to selected section")
       window.dispatchEvent(new CustomEvent("section-books-changed"))
       return
@@ -193,6 +209,7 @@ export function BookSearch() {
       return
     }
 
+    clearShelfCache()
     toast.success("Book added to section")
     window.dispatchEvent(new CustomEvent("section-books-changed"))
   }
