@@ -64,6 +64,24 @@ export function SectionCards() {
   const [usernameSuggestions, setUsernameSuggestions] = useState<string[]>([])
   const publicUsername = username || "reader"
   const publicShelfUrl = `plottwist.tech/@${publicUsername}`
+  const normalizedDraftUsername = normalizeUsername(draftUsername)
+  const isDraftTooShort = normalizedDraftUsername.length < 3
+  const isCurrentUsername = normalizedDraftUsername === username
+
+  const checkUsernameInProfiles = async (candidate: string, userId: string) => {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("username", candidate)
+      .neq("id", userId)
+      .maybeSingle()
+
+    if (error) {
+      return { available: null as boolean | null, error: true }
+    }
+
+    return { available: !data, error: false }
+  }
 
   useEffect(() => {
     const ensureProfile = async () => {
@@ -170,15 +188,16 @@ export function SectionCards() {
         return
       }
 
+      if (normalized === username) {
+        setUsernameAvailable(true)
+        setUsernameSuggestions([])
+        return
+      }
+
       setCheckingUsername(true)
 
-      const [{ data: exactData, error: exactError }, { data: suggestionsData, error: suggestionsError }] = await Promise.all([
-        supabase
-          .from("profiles")
-          .select("id")
-          .eq("username", normalized)
-          .neq("id", user.id)
-          .maybeSingle(),
+      const [{ available, error: availabilityError }, { data: suggestionsData, error: suggestionsError }] = await Promise.all([
+        checkUsernameInProfiles(normalized, user.id),
         supabase
           .from("profiles")
           .select("username")
@@ -189,13 +208,13 @@ export function SectionCards() {
 
       setCheckingUsername(false)
 
-      if (exactError || suggestionsError) {
+      if (availabilityError || suggestionsError) {
         setUsernameAvailable(null)
         setUsernameSuggestions([])
         return
       }
 
-      setUsernameAvailable(!exactData)
+      setUsernameAvailable(available)
       setUsernameSuggestions(
         (suggestionsData ?? []).map((item: { username: string }) => item.username)
       )
@@ -215,6 +234,21 @@ export function SectionCards() {
     }
 
     setSavingUsername(true)
+
+    const { available, error: availabilityError } = await checkUsernameInProfiles(next, user.id)
+
+    if (availabilityError) {
+      setSavingUsername(false)
+      toast.error("Could not verify username availability")
+      return
+    }
+
+    if (!available) {
+      setSavingUsername(false)
+      setUsernameAvailable(false)
+      toast.error("Username is already taken")
+      return
+    }
 
     const { error } = await supabase
       .from("profiles")
@@ -333,7 +367,7 @@ export function SectionCards() {
             onClick={(event) => event.stopPropagation()}
           >
             <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Choose your username</h3>
+              <h3 className="text-lg font-semibold">Search username</h3>
               <button
                 type="button"
                 onClick={() => setIsUsernameModalOpen(false)}
@@ -343,8 +377,8 @@ export function SectionCards() {
               </button>
             </div>
 
-            <p className="text-muted-foreground mb-3 text-sm">
-              We use text before <span className="font-medium">@</span> from your email for the first username. You can change it anytime.
+            <p className="text-muted-foreground mb-3 text-sm leading-relaxed">
+              This becomes your public shelf link: <span className="font-medium">plottwist.tech/@username</span>. 
             </p>
 
             <Input
@@ -352,18 +386,20 @@ export function SectionCards() {
               onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
                 setDraftUsername(event.target.value)
               }
-              placeholder="Search username"
+              placeholder="Type a username"
             />
 
             <div className="mt-2 min-h-5 text-xs">
-              {normalizeUsername(draftUsername).length < 3 ? (
+              {isDraftTooShort ? (
                 <p className="text-muted-foreground">Username must be at least 3 characters.</p>
               ) : checkingUsername ? (
                 <p className="text-muted-foreground">Checking availability...</p>
+              ) : isCurrentUsername ? (
+                <p className="text-green-600">You are already using @{normalizedDraftUsername}</p>
               ) : usernameAvailable === true ? (
-                <p className="text-green-600">@{normalizeUsername(draftUsername)} is available</p>
+                <p className="text-green-600">@{normalizedDraftUsername} is available</p>
               ) : usernameAvailable === false ? (
-                <p className="text-destructive">@{normalizeUsername(draftUsername)} is already taken</p>
+                <p className="text-destructive">@{normalizedDraftUsername} is already taken</p>
               ) : null}
             </div>
 

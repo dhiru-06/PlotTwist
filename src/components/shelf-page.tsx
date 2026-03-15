@@ -1,4 +1,7 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { toast } from "sonner"
+import { useAuth } from "@/hooks/useAuth"
+import { supabase } from "@/lib/supabase"
 import { Card } from "@/components/ui/card"
 
 interface Book {
@@ -78,10 +81,6 @@ const THEMES = {
     background: "from-amber-50 via-stone-50 to-neutral-100",
     shelf: "from-stone-300 to-stone-400",
   },
-  dark: {
-    background: "from-neutral-900 via-neutral-800 to-stone-900",
-    shelf: "from-neutral-700 to-neutral-800",
-  },
   vintage: {
     background: "from-amber-100 via-orange-50 to-yellow-50",
     shelf: "from-amber-800 to-amber-900",
@@ -94,29 +93,140 @@ interface ShelfPageProps {
 }
 
 export function ShelfPage({ username = "maya", isPublicView = false }: ShelfPageProps) {
+  const { user } = useAuth()
   const [selectedBook, setSelectedBook] = useState<Book | null>(null)
   const [showSettings, setShowSettings] = useState(false)
-  const [theme, setTheme] = useState<"light" | "dark" | "vintage">("light")
+  const [theme, setTheme] = useState<"light" | "vintage">("light")
   const [hoveredBook, setHoveredBook] = useState<{ shelfIndex: number; bookIndex: number } | null>(null)
-  const [customHeader, setCustomHeader] = useState("")
-  const [showCustomHeader, setShowCustomHeader] = useState(false)
+  const [bio, setBio] = useState("")
+  const [isSaving, setIsSaving] = useState(false)
+  const [profileUsername, setProfileUsername] = useState(username)
+  const [bookCount, setBookCount] = useState(0)
+  const [avgRating, setAvgRating] = useState<number | null>(null)
   const [socialLinks, setSocialLinks] = useState<SocialLink[]>([
     { platform: "Twitter", url: "", icon: "𝕏" },
     { platform: "Instagram", url: "", icon: "📷" },
     { platform: "Goodreads", url: "", icon: "📚" },
   ])
 
+  useEffect(() => {
+    if (!user) return
+
+    async function loadProfile() {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("username, bio, theme")
+        .eq("id", user!.id)
+        .maybeSingle()
+
+      if (profile) {
+        setBio(profile.bio ?? "")
+        if (profile.username) setProfileUsername(profile.username)
+        if (profile.theme === "light" || profile.theme === "vintage") {
+          setTheme(profile.theme)
+        }
+      }
+
+      const { data: books } = await supabase
+        .from("section_books")
+        .select("rating")
+        .eq("profile_id", user!.id)
+
+      if (books) {
+        setBookCount(books.length)
+        const rated = books.filter((b: { rating: number | null }) => b.rating != null)
+        if (rated.length > 0) {
+          const avg = rated.reduce((sum: number, b: { rating: number }) => sum + b.rating, 0) / rated.length
+          setAvgRating(Math.round(avg * 10) / 10)
+        }
+      }
+
+      const { data: links } = await supabase
+        .from("profile_social_links")
+        .select("platform, url")
+        .eq("profile_id", user!.id)
+        .order("sort_order", { ascending: true })
+
+      if (links && links.length > 0) {
+        setSocialLinks((prev) =>
+          prev.map((existing) => {
+            const saved = links.find(
+              (link: { platform: string; url: string }) =>
+                link.platform.toLowerCase() === existing.platform.toLowerCase()
+            )
+            return saved ? { ...existing, url: saved.url } : existing
+          })
+        )
+      }
+    }
+
+    void loadProfile()
+  }, [user])
+
+  async function handleSaveSettings() {
+    if (!user) {
+      toast.error("Please sign in to save settings")
+      return
+    }
+
+    setIsSaving(true)
+
+    const { error: profileError } = await supabase
+      .from("profiles")
+      .update({
+        bio: bio.trim() || null,
+        theme,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", user.id)
+
+    if (profileError) {
+      setIsSaving(false)
+      toast.error("Failed to save profile")
+      return
+    }
+
+    const { error: deleteError } = await supabase
+      .from("profile_social_links")
+      .delete()
+      .eq("profile_id", user.id)
+
+    if (deleteError) {
+      setIsSaving(false)
+      toast.error("Failed to update social links")
+      return
+    }
+
+    const linksToInsert = socialLinks
+      .filter((link) => link.url.trim())
+      .map((link, index) => ({
+        profile_id: user.id,
+        platform: link.platform,
+        url: link.url.trim(),
+        sort_order: index,
+      }))
+
+    if (linksToInsert.length > 0) {
+      const { error: insertError } = await supabase
+        .from("profile_social_links")
+        .insert(linksToInsert)
+
+      if (insertError) {
+        setIsSaving(false)
+        toast.error("Failed to save social links")
+        return
+      }
+    }
+
+    setIsSaving(false)
+    toast.success("Settings saved")
+    setShowSettings(false)
+  }
+
   const currentTheme = THEMES[theme]
 
   return (
     <div className={`min-h-screen bg-gradient-to-br ${currentTheme.background}`}>
-      {/* Custom Header */}
-      {showCustomHeader && customHeader && (
-        <div className="bg-gradient-to-r from-purple-600 to-pink-600 text-white py-4 px-8 text-center font-semibold">
-          {customHeader}
-        </div>
-      )}
-
       {/* Header */}
       <header className="backdrop-blur-sm bg-background/80 border-b border-input/50 px-8 py-5 flex items-center justify-between sticky top-0 z-40">
         <button
@@ -160,7 +270,7 @@ export function ShelfPage({ username = "maya", isPublicView = false }: ShelfPage
               {/* Theme Selection */}
               <div className="space-y-3">
                 <label className="font-semibold">Theme</label>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 gap-3">
                   {(Object.keys(THEMES) as Array<keyof typeof THEMES>).map((themeName) => (
                     <button
                       key={themeName}
@@ -176,25 +286,18 @@ export function ShelfPage({ username = "maya", isPublicView = false }: ShelfPage
                 </div>
               </div>
 
-              {/* Custom Header */}
+              {/* Bio */}
               <div className="space-y-3">
-                <label className="font-semibold">Custom Header</label>
-                <div className="flex items-center gap-2 mb-2">
-                  <input
-                    type="checkbox"
-                    checked={showCustomHeader}
-                    onChange={(e) => setShowCustomHeader(e.target.checked)}
-                    className="w-4 h-4"
-                  />
-                  <span className="text-sm">Show custom header</span>
-                </div>
-                <input
-                  type="text"
-                  value={customHeader}
-                  onChange={(e) => setCustomHeader(e.target.value)}
-                  placeholder="Enter your header text..."
-                  className="w-full px-4 py-2 rounded-lg border border-input bg-background"
+                <label className="font-semibold">Bio</label>
+                <textarea
+                  value={bio}
+                  onChange={(e) => setBio(e.target.value)}
+                  placeholder="Tell people about your reading life..."
+                  rows={4}
+                  maxLength={300}
+                  className="w-full px-4 py-2 rounded-lg border border-input bg-background resize-none text-sm"
                 />
+                <p className="text-xs text-muted-foreground text-right">{bio.length}/300</p>
               </div>
 
               {/* Social Links */}
@@ -212,17 +315,18 @@ export function ShelfPage({ username = "maya", isPublicView = false }: ShelfPage
                         setSocialLinks(newLinks)
                       }}
                       placeholder={`${link.platform} URL`}
-                      className="flex-1 px-4 py-2 rounded-lg border border-input bg-background"
+                      className="flex-1 px-4 py-2 rounded-lg border border-input bg-background text-sm"
                     />
                   </div>
                 ))}
               </div>
 
               <button
-                onClick={() => setShowSettings(false)}
-                className="w-full py-3 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold hover:from-purple-600 hover:to-pink-600 transition-all"
+                onClick={handleSaveSettings}
+                disabled={isSaving}
+                className="w-full py-3 rounded-lg bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-all disabled:opacity-60"
               >
-                Save Changes
+                {isSaving ? "Saving..." : "Save Changes"}
               </button>
             </div>
           </Card>
@@ -234,26 +338,32 @@ export function ShelfPage({ username = "maya", isPublicView = false }: ShelfPage
         <aside className="w-80 border-r border-input/30 p-6 min-h-screen backdrop-blur-sm bg-background/30">
           <Card className="bg-gradient-to-br from-white/80 to-white/40 dark:from-neutral-800/80 dark:to-neutral-900/40 backdrop-blur-xl border border-input/50 rounded-3xl p-6 shadow-xl">
             <div className="flex items-center gap-3 mb-4">
-              <div className="flex items-center justify-center w-16 h-16 rounded-3xl bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400 text-2xl font-bold text-white shadow-lg flex-shrink-0">
-                M
+              <div className="flex items-center justify-center w-16 h-16 rounded-3xl bg-primary text-2xl font-bold text-primary-foreground shadow-lg flex-shrink-0">
+                {profileUsername.charAt(0).toUpperCase()}
               </div>
               <div>
-                <h2 className="text-2xl font-bold bg-gradient-to-br from-foreground to-foreground/70 bg-clip-text text-transparent">@{username}</h2>
+                <h2 className="text-2xl font-bold bg-gradient-to-br from-purple-600 to-pink-500 bg-clip-text text-transparent">@{profileUsername}</h2>
               </div>
             </div>
-            <p className="text-xs text-muted-foreground mb-6 leading-relaxed">
-              Welcome to my digital library. A curated collection of stories that shaped my
-              perspective.
-            </p>
+            {bio && (
+              <p className="text-xs text-muted-foreground mb-6 leading-relaxed">
+                {bio}
+              </p>
+            )}
+            {!bio && (
+              <p className="text-xs text-muted-foreground mb-6 leading-relaxed">
+                Welcome to my digital library.
+              </p>
+            )}
 
             <div className="space-y-3 pt-4 border-t border-input/30">
               <div className="flex items-center justify-between p-2 rounded-xl bg-accent/50">
                 <span className="text-xs font-medium text-muted-foreground">Books</span>
-                <span className="font-bold text-lg">{MOCK_BOOKS.length}</span>
+                <span className="font-bold text-lg text-600">{bookCount}</span>
               </div>
               <div className="flex items-center justify-between p-2 rounded-xl bg-accent/50">
                 <span className="text-xs font-medium text-muted-foreground">Avg Rating</span>
-                <span className="font-bold text-lg">4.8 ★</span>
+                <span className="font-bold text-lg text-600">{avgRating != null ? `${avgRating} ★` : "— ★"}</span>
               </div>
             </div>
 
@@ -282,10 +392,9 @@ export function ShelfPage({ username = "maya", isPublicView = false }: ShelfPage
 
         {/* Main Content - Bookshelf */}
         <main className="flex-1 p-8 max-w-6xl mx-auto">
-          <div className="mb-8">
-            <h2 className="text-3xl font-bold mb-2 bg-gradient-to-br from-foreground via-foreground/90 to-foreground/70 bg-clip-text text-transparent">My Library</h2>
-            <p className="text-sm text-muted-foreground">A collection of books that inspire me</p>
-          </div>
+          {/* <div className="mb-8">
+            <h2 className="text-3xl font-bold mb-2 bg-gradient-to-br from-foreground via-foreground/90 to-foreground/70 bg-clip-text text-transparent">A glimpse of my book collection</h2>
+          </div> */}
 
           {/* Shelves stacked vertically */}
           <div className="space-y-16">

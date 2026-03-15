@@ -19,7 +19,6 @@ import {
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import {
-  IconChevronDown,
   IconChevronLeft,
   IconChevronRight,
   IconChevronsLeft,
@@ -27,9 +26,9 @@ import {
   IconCircleCheckFilled,
   IconDotsVertical,
   IconGripVertical,
-  IconLayoutColumns,
   IconLoader,
   IconPlus,
+  IconSettings2,
   IconTrendingUp,
   IconX,
 } from "@tabler/icons-react"
@@ -48,11 +47,14 @@ import {
   type SortingState,
   type VisibilityState,
 } from "@tanstack/react-table"
+import type { CheckedState } from "@radix-ui/react-checkbox"
 import { Area, AreaChart, CartesianGrid, XAxis } from "recharts"
 import { toast } from "sonner"
 import { z } from "zod"
 
+import { useAuth } from "@/hooks/useAuth"
 import { useIsMobile } from "@/hooks/use-mobile"
+import { supabase } from "@/lib/supabase"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -74,7 +76,6 @@ import {
 } from "@/components/ui/drawer"
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
@@ -101,8 +102,6 @@ import {
 import {
   Tabs,
   TabsContent,
-  TabsList,
-  TabsTrigger,
 } from "@/components/ui/tabs"
 
 export const schema = z.object({
@@ -114,6 +113,31 @@ export const schema = z.object({
   limit: z.string(),
   reviewer: z.string(),
 })
+
+type SectionRecord = {
+  id: string
+  name: string
+  slug: string
+  sort_order: number
+  is_default: boolean
+}
+
+type CustomView = {
+  value: string
+  label: string
+  slug: string
+  sortOrder: number
+}
+
+type SectionBookRecord = {
+  id: string
+  section_id: string
+  title: string
+  author: string | null
+  cover_url: string | null
+  rating: number | null
+  notes: string | null
+}
 
 // Create a separate component for the drag handle
 function DragHandle({ id }: { id: number }) {
@@ -150,7 +174,9 @@ const columns: ColumnDef<z.infer<typeof schema>>[] = [
             table.getIsAllPageRowsSelected() ||
             (table.getIsSomePageRowsSelected() && "indeterminate")
           }
-          onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+          onCheckedChange={(value: CheckedState) =>
+            table.toggleAllPageRowsSelected(!!value)
+          }
           aria-label="Select all"
         />
       </div>
@@ -159,7 +185,7 @@ const columns: ColumnDef<z.infer<typeof schema>>[] = [
       <div className="flex items-center justify-center">
         <Checkbox
           checked={row.getIsSelected()}
-          onCheckedChange={(value) => row.toggleSelected(!!value)}
+          onCheckedChange={(value: CheckedState) => row.toggleSelected(!!value)}
           aria-label="Select row"
         />
       </div>
@@ -340,23 +366,26 @@ export function DataTable({
 }: {
   data: z.infer<typeof schema>[]
 }) {
-  const baseViews = React.useMemo(
-    () => [
-      { value: "outline", label: "Outline" },
-      { value: "past-performance", label: "Past Performance" },
-      { value: "key-personnel", label: "Key Personnel" },
-      { value: "focus-documents", label: "Focus Documents" },
-    ],
-    []
-  )
+  const { user } = useAuth()
+  const isMobile = useIsMobile()
 
   const [data, setData] = React.useState(() => initialData)
-  const [activeView, setActiveView] = React.useState("outline")
-  const [customViews, setCustomViews] = React.useState<
-    { value: string; label: string }[]
-  >([])
-  const [editingViewId, setEditingViewId] = React.useState<string | null>(null)
-  const [editingViewLabel, setEditingViewLabel] = React.useState("")
+  const [activeView, setActiveView] = React.useState("")
+  const [defaultViews, setDefaultViews] = React.useState<CustomView[]>([])
+  const [customViews, setCustomViews] = React.useState<CustomView[]>([])
+  const [isSectionsLoading, setIsSectionsLoading] = React.useState(false)
+  const [isSubmittingSection, setIsSubmittingSection] = React.useState(false)
+  const [isSectionBooksLoading, setIsSectionBooksLoading] = React.useState(false)
+  const [sectionBooks, setSectionBooks] = React.useState<SectionBookRecord[]>([])
+  const [sectionBooksRefreshKey, setSectionBooksRefreshKey] = React.useState(0)
+  const [isSectionManagerOpen, setIsSectionManagerOpen] = React.useState(false)
+  const [sectionMode, setSectionMode] = React.useState<"create" | "edit">(
+    "create"
+  )
+  const [selectedSectionId, setSelectedSectionId] = React.useState<string | null>(
+    null
+  )
+  const [sectionName, setSectionName] = React.useState("")
   const [rowSelection, setRowSelection] = React.useState({})
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>({})
@@ -378,6 +407,15 @@ export function DataTable({
   const dataIds = React.useMemo<UniqueIdentifier[]>(
     () => data?.map(({ id }) => id) || [],
     [data]
+  )
+
+  const allViews = React.useMemo(
+    () => [...defaultViews, ...customViews],
+    [defaultViews, customViews]
+  )
+  const defaultViewIds = React.useMemo(
+    () => new Set(defaultViews.map((view) => view.value)),
+    [defaultViews]
   )
 
   const table = useReactTable({
@@ -405,6 +443,212 @@ export function DataTable({
     getFacetedUniqueValues: getFacetedUniqueValues(),
   })
 
+  React.useEffect(() => {
+    let isCancelled = false
+
+    async function loadSections() {
+      if (!user) {
+        setActiveView("")
+        setDefaultViews([])
+        setCustomViews([])
+        return
+      }
+
+      setIsSectionsLoading(true)
+
+      const { data: sections, error } = await supabase
+        .from("sections")
+        .select("id, name, slug, sort_order, is_default")
+        .eq("profile_id", user.id)
+        .order("sort_order", { ascending: true })
+        .order("created_at", { ascending: true })
+
+      if (isCancelled) return
+
+      setIsSectionsLoading(false)
+
+      if (error) {
+        toast.error("Failed to load sections")
+        return
+      }
+
+      const mappedDefaultViews = (sections ?? [])
+        .filter((section: SectionRecord) => section.is_default)
+        .map((section: SectionRecord) => ({
+          value: section.id,
+          label: section.name,
+          slug: section.slug,
+          sortOrder: section.sort_order,
+        }))
+
+      const mappedCustomViews = (sections ?? [])
+        .filter((section: SectionRecord) => !section.is_default)
+        .map((section: SectionRecord) => ({
+          value: section.id,
+          label: section.name,
+          slug: section.slug,
+          sortOrder: section.sort_order,
+        }))
+
+      const defaultSection = (sections ?? []).find(
+        (section: SectionRecord) => section.is_default
+      )
+
+      setDefaultViews(mappedDefaultViews)
+      setCustomViews(mappedCustomViews)
+
+      const fallbackViewId =
+        defaultSection?.id ??
+        mappedDefaultViews[0]?.value ??
+        mappedCustomViews[0]?.value ??
+        ""
+
+      setActiveView(fallbackViewId)
+    }
+
+    void loadSections()
+
+    return () => {
+      isCancelled = true
+    }
+  }, [user])
+
+  React.useEffect(() => {
+    let isCancelled = false
+
+    async function loadSectionBooks() {
+      if (!user || allViews.length === 0) {
+        setSectionBooks([])
+        return
+      }
+
+      setIsSectionBooksLoading(true)
+
+      const sectionIds = allViews.map((view) => view.value)
+
+      const { data: books, error } = await supabase
+        .from("section_books")
+        .select("id, section_id, title, author, cover_url, rating, notes")
+        .eq("profile_id", user.id)
+        .in("section_id", sectionIds)
+        .order("sort_order", { ascending: true })
+        .order("created_at", { ascending: true })
+
+      if (isCancelled) return
+
+      setIsSectionBooksLoading(false)
+
+      if (error) {
+        toast.error("Failed to load section books")
+        return
+      }
+
+      setSectionBooks((books ?? []) as SectionBookRecord[])
+    }
+
+    void loadSectionBooks()
+
+    return () => {
+      isCancelled = true
+    }
+  }, [user, allViews, sectionBooksRefreshKey])
+
+  React.useEffect(() => {
+    function handleSectionBooksChanged() {
+      setSectionBooksRefreshKey((prev) => prev + 1)
+    }
+
+    window.addEventListener("section-books-changed", handleSectionBooksChanged)
+
+    return () => {
+      window.removeEventListener("section-books-changed", handleSectionBooksChanged)
+    }
+  }, [])
+
+  async function handleSaveSectionBook(bookId: string) {
+    if (!user) {
+      toast.error("Please sign in to update books")
+      return
+    }
+
+    const book = sectionBooks.find((item) => item.id === bookId)
+    if (!book) return
+
+    const { error } = await supabase
+      .from("section_books")
+      .update({
+        rating: book.rating,
+        notes: book.notes?.trim() || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", bookId)
+      .eq("profile_id", user.id)
+
+    if (error) {
+      toast.error("Failed to save book changes")
+      return
+    }
+
+    toast.success("Book updated")
+  }
+
+  async function handleDeleteSectionBook(bookId: string) {
+    if (!user) {
+      toast.error("Please sign in to remove books")
+      return
+    }
+
+    const { error } = await supabase
+      .from("section_books")
+      .delete()
+      .eq("id", bookId)
+      .eq("profile_id", user.id)
+
+    if (error) {
+      toast.error("Failed to remove book")
+      return
+    }
+
+    setSectionBooks((prev) => prev.filter((book) => book.id !== bookId))
+    toast.success("Book removed")
+  }
+
+  function handleSectionBookRatingChange(bookId: string, value: string) {
+    setSectionBooks((prev) =>
+      prev.map((book) => {
+        if (book.id !== bookId) return book
+
+        if (value.trim() === "") {
+          return {
+            ...book,
+            rating: null,
+          }
+        }
+
+        const parsed = Number(value)
+        if (Number.isNaN(parsed)) return book
+
+        return {
+          ...book,
+          rating: Math.min(5, Math.max(0, parsed)),
+        }
+      })
+    )
+  }
+
+  function handleSectionBookNotesChange(bookId: string, notes: string) {
+    setSectionBooks((prev) =>
+      prev.map((book) =>
+        book.id === bookId
+          ? {
+            ...book,
+            notes,
+          }
+          : book
+      )
+    )
+  }
+
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event
     if (active && over && active.id !== over.id) {
@@ -416,59 +660,226 @@ export function DataTable({
     }
   }
 
-  function handleAddSection() {
-    const nextIndex = customViews.length + 1
-    const nextView = {
-      value: `custom-section-${Date.now()}`,
-      label: `Custom Section ${nextIndex}`,
-    }
-
-    setCustomViews((prev) => [...prev, nextView])
-    setActiveView(nextView.value)
-    setEditingViewId(nextView.value)
-    setEditingViewLabel(nextView.label)
+  function resetSectionForm() {
+    setSectionMode("create")
+    setSelectedSectionId(null)
+    setSectionName("")
   }
 
-  function handleDeleteSection(value: string) {
-    setCustomViews((prev) => prev.filter((view) => view.value !== value))
+  function handleOpenSectionManager() {
+    resetSectionForm()
+    setIsSectionManagerOpen(true)
+  }
 
-    if (editingViewId === value) {
-      setEditingViewId(null)
-      setEditingViewLabel("")
-    }
+  function handleCloseSectionManager(open: boolean) {
+    setIsSectionManagerOpen(open)
 
-    if (activeView === value) {
-      setActiveView("outline")
+    if (!open) {
+      resetSectionForm()
     }
   }
 
-  function handleStartRenameSection(value: string, label: string) {
-    setEditingViewId(value)
-    setEditingViewLabel(label)
+  function slugifySectionName(name: string) {
+    const slug = name
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9\s-]/g, "")
+      .replace(/\s+/g, "-")
+      .replace(/-+/g, "-")
+
+    return slug || "section"
   }
 
-  function handleSaveRenameSection() {
-    if (!editingViewId) return
+  async function getUniqueSlug(name: string, excludeSectionId?: string | null) {
+    if (!user) return slugifySectionName(name)
 
-    const trimmedLabel = editingViewLabel.trim()
-    if (!trimmedLabel) return
+    const baseSlug = slugifySectionName(name)
+
+    const { data: existingSections, error } = await supabase
+      .from("sections")
+      .select("id, slug")
+      .eq("profile_id", user.id)
+      .ilike("slug", `${baseSlug}%`)
+
+    if (error) {
+      return baseSlug
+    }
+
+    const usedSlugs = new Set(
+      (existingSections ?? [])
+        .filter((section: { id: string; slug: string }) => section.id !== excludeSectionId)
+        .map((section: { id: string; slug: string }) => section.slug)
+    )
+
+    if (!usedSlugs.has(baseSlug)) {
+      return baseSlug
+    }
+
+    let suffix = 2
+    let candidate = `${baseSlug}-${suffix}`
+
+    while (usedSlugs.has(candidate)) {
+      suffix += 1
+      candidate = `${baseSlug}-${suffix}`
+    }
+
+    return candidate
+  }
+
+  async function handleSubmitSection(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    if (!user) {
+      toast.error("Please sign in to manage sections")
+      return
+    }
+
+    const trimmedName = sectionName.trim()
+
+    if (!trimmedName) {
+      toast.error("Section name is required")
+      return
+    }
+
+    setIsSubmittingSection(true)
+
+    if (sectionMode === "create") {
+      const nextSortOrder =
+        customViews.length > 0
+          ? Math.max(...customViews.map((view) => view.sortOrder)) + 1
+          : 0
+
+      const uniqueSlug = await getUniqueSlug(trimmedName)
+
+      const { data: createdSection, error } = await supabase
+        .from("sections")
+        .insert({
+          profile_id: user.id,
+          name: trimmedName,
+          slug: uniqueSlug,
+          sort_order: nextSortOrder,
+          is_default: false,
+        })
+        .select("id, name, slug, sort_order")
+        .single()
+
+      if (error || !createdSection) {
+        setIsSubmittingSection(false)
+        toast.error("Failed to create section")
+        return
+      }
+
+      const nextView: CustomView = {
+        value: createdSection.id,
+        label: createdSection.name,
+        slug: createdSection.slug,
+        sortOrder: createdSection.sort_order,
+      }
+
+      setCustomViews((prev) => [...prev, nextView])
+      setActiveView(nextView.value)
+      setIsSubmittingSection(false)
+      toast.success("Section created")
+      resetSectionForm()
+      return
+    }
+
+    if (!selectedSectionId) {
+      setIsSubmittingSection(false)
+      return
+    }
+
+    const uniqueSlug = await getUniqueSlug(trimmedName, selectedSectionId)
+
+    const { data: updatedSection, error } = await supabase
+      .from("sections")
+      .update({
+        name: trimmedName,
+        slug: uniqueSlug,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", selectedSectionId)
+      .eq("profile_id", user.id)
+      .select("id, name, slug, sort_order")
+      .single()
+
+    if (error || !updatedSection) {
+      setIsSubmittingSection(false)
+      toast.error("Failed to update section")
+      return
+    }
 
     setCustomViews((prev) =>
       prev.map((view) =>
-        view.value === editingViewId ? { ...view, label: trimmedLabel } : view
+        view.value === selectedSectionId
+          ? {
+            ...view,
+            label: updatedSection.name,
+            slug: updatedSection.slug,
+            sortOrder: updatedSection.sort_order,
+          }
+          : view
       )
     )
 
-    setEditingViewId(null)
-    setEditingViewLabel("")
+    setDefaultViews((prev) =>
+      prev.map((view) =>
+        view.value === selectedSectionId
+          ? {
+            ...view,
+            label: updatedSection.name,
+            slug: updatedSection.slug,
+            sortOrder: updatedSection.sort_order,
+          }
+          : view
+      )
+    )
+
+    setIsSubmittingSection(false)
+    toast.success("Section updated")
+    resetSectionForm()
   }
 
-  function handleCancelRenameSection() {
-    setEditingViewId(null)
-    setEditingViewLabel("")
+  async function handleDeleteSection(value: string) {
+    if (!user) {
+      toast.error("Please sign in to manage sections")
+      return
+    }
+
+    if (defaultViewIds.has(value)) {
+      toast.error("Default sections cannot be deleted")
+      return
+    }
+
+    const { error } = await supabase
+      .from("sections")
+      .delete()
+      .eq("id", value)
+      .eq("profile_id", user.id)
+
+    if (error) {
+      toast.error("Failed to delete section")
+      return
+    }
+
+    setCustomViews((prev) => prev.filter((view) => view.value !== value))
+
+    if (selectedSectionId === value) {
+      resetSectionForm()
+    }
+
+    if (activeView === value) {
+      setActiveView(defaultViews[0]?.value ?? customViews[0]?.value ?? "")
+    }
+
+    toast.success("Section deleted")
   }
 
-  const allViews = [...baseViews, ...customViews]
+  function handleEditSection(view: { value: string; label: string }) {
+    setSectionMode("edit")
+    setSelectedSectionId(view.value)
+    setSectionName(view.label)
+  }
 
   return (
     <Tabs
@@ -481,141 +892,134 @@ export function DataTable({
           View
         </Label>
         <Select value={activeView} onValueChange={setActiveView}>
-          <SelectTrigger
-            className="flex w-fit @4xl/main:hidden"
-            size="sm"
-            id="view-selector"
-          >
+          <SelectTrigger className="flex w-fit min-w-52" size="sm" id="view-selector">
             <SelectValue placeholder="Select a view" />
           </SelectTrigger>
           <SelectContent>
-            {baseViews.map((view) => (
-              <SelectItem key={view.value} value={view.value}>
-                {view.label}
-              </SelectItem>
-            ))}
-            {customViews.map((view) => (
+            {allViews.map((view) => (
               <SelectItem key={view.value} value={view.value}>
                 {view.label}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
-        <TabsList className="**:data-[slot=badge]:bg-muted-foreground/30 hidden **:data-[slot=badge]:size-5 **:data-[slot=badge]:rounded-full **:data-[slot=badge]:px-1 @4xl/main:flex">
-          {allViews.map((view) => (
-            <TabsTrigger key={view.value} value={view.value}>
-              {view.label}
-              {view.value === "past-performance" && (
-                <Badge variant="secondary">3</Badge>
-              )}
-              {view.value === "key-personnel" && (
-                <Badge variant="secondary">2</Badge>
-              )}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-        <div className="flex items-center gap-2">
-          {customViews.length > 0 && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm">
-                  Manage Sections
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-80 p-2">
-                <div className="space-y-2">
-                  {customViews.map((view) => {
-                    const isEditing = editingViewId === view.value
-
-                    return (
-                      <div
-                        key={view.value}
-                        className="bg-background flex items-center gap-2 rounded-md border p-2"
-                      >
-                        {isEditing ? (
-                          <Input
-                            value={editingViewLabel}
-                              onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
-                              setEditingViewLabel(event.target.value)
-                            }
-                              onKeyDown={(event: React.KeyboardEvent<HTMLInputElement>) => {
-                              if (event.key === "Enter") {
-                                event.preventDefault()
-                                handleSaveRenameSection()
-                              }
-                            }}
-                            autoFocus
-                            className="h-8"
-                          />
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => setActiveView(view.value)}
-                            className="hover:text-foreground flex-1 truncate text-left text-sm"
-                          >
-                            {view.label}
-                          </button>
-                        )}
-
-                        {isEditing ? (
-                          <>
-                            <Button
-                              type="button"
-                              size="sm"
-                              className="h-8 px-2"
-                              onClick={handleSaveRenameSection}
-                            >
-                              Save
-                            </Button>
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="ghost"
-                              className="h-8 px-2"
-                              onClick={handleCancelRenameSection}
-                            >
-                              Cancel
-                            </Button>
-                          </>
-                        ) : (
-                          <>
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="ghost"
-                              className="h-8 px-2"
-                              onClick={() =>
-                                handleStartRenameSection(view.value, view.label)
-                              }
-                            >
-                              Rename
-                            </Button>
-                            <Button
-                              type="button"
-                              size="icon"
-                              variant="ghost"
-                              className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                              aria-label={`Delete ${view.label}`}
-                              onClick={() => handleDeleteSection(view.value)}
-                            >
-                              <IconX className="size-4" />
-                            </Button>
-                          </>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-
-          <Button variant="outline" size="sm" onClick={handleAddSection}>
-            <IconPlus />
-            <span className="hidden lg:inline">Add Section</span>
+        <div className="ml-auto flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={handleOpenSectionManager}>
+            <IconSettings2 />
+            <span className="hidden lg:inline">Manage Sections</span>
           </Button>
         </div>
       </div>
+      <Drawer
+        direction={isMobile ? "bottom" : "right"}
+        open={isSectionManagerOpen}
+        onOpenChange={handleCloseSectionManager}
+      >
+        <DrawerContent>
+          <DrawerHeader>
+            <DrawerTitle>
+              {sectionMode === "create" ? "Create Section" : "Edit Section"}
+            </DrawerTitle>
+            <DrawerDescription>
+              Add new sections or manage existing custom sections.
+            </DrawerDescription>
+          </DrawerHeader>
+          <div className="space-y-6 px-4 text-sm">
+            <form className="space-y-3" onSubmit={handleSubmitSection}>
+              <Label htmlFor="section-name">
+                {sectionMode === "create" ? "Section name" : "Rename section"}
+              </Label>
+              <Input
+                id="section-name"
+                value={sectionName}
+                onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
+                  setSectionName(event.target.value)
+                }
+                placeholder="Enter section name"
+              />
+              <div className="flex items-center gap-2">
+                <Button type="submit" disabled={isSubmittingSection}>
+                  {sectionMode === "create" ? "Create Section" : "Save Changes"}
+                </Button>
+                {sectionMode === "edit" && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={resetSectionForm}
+                  >
+                    Cancel
+                  </Button>
+                )}
+              </div>
+            </form>
+            <Separator />
+            <div className="space-y-2 pb-2">
+              <div className="text-muted-foreground text-xs font-medium uppercase">
+                Existing sections
+              </div>
+              {isSectionsLoading ? (
+                <div className="text-muted-foreground rounded-md border border-dashed p-3">
+                  Loading sections...
+                </div>
+              ) : allViews.length === 0 ? (
+                <div className="text-muted-foreground rounded-md border border-dashed p-3">
+                  No sections yet.
+                </div>
+              ) : (
+                allViews.map((view) => {
+                  const isDefaultSection = defaultViewIds.has(view.value)
+
+                  return (
+                    <div
+                      key={view.value}
+                      className="bg-background flex items-center gap-2 rounded-md border p-2"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => setActiveView(view.value)}
+                        className="hover:text-foreground flex-1 truncate text-left"
+                      >
+                        {view.label}
+                      </button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 px-2"
+                        onClick={() => handleEditSection(view)}
+                      >
+                        Edit
+                      </Button>
+                      {!isDefaultSection && (
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                          aria-label={`Delete ${view.label}`}
+                          onClick={() => handleDeleteSection(view.value)}
+                        >
+                          <IconX className="size-4" />
+                        </Button>
+                      )}
+                      {isDefaultSection && (
+                        <Badge variant="outline" className="h-7 px-2 text-[10px]">
+                          Default
+                        </Badge>
+                      )}
+                    </div>
+                  )
+                })
+              )}
+            </div>
+          </div>
+          <DrawerFooter>
+            <DrawerClose asChild>
+              <Button variant="outline">Done</Button>
+            </DrawerClose>
+          </DrawerFooter>
+        </DrawerContent>
+      </Drawer>
       <TabsContent
         value="outline"
         className="relative flex flex-col gap-4 overflow-auto px-4 lg:px-6"
@@ -638,9 +1042,9 @@ export function DataTable({
                           {header.isPlaceholder
                             ? null
                             : flexRender(
-                                header.column.columnDef.header,
-                                header.getContext()
-                              )}
+                              header.column.columnDef.header,
+                              header.getContext()
+                            )}
                         </TableHead>
                       )
                     })}
@@ -683,7 +1087,7 @@ export function DataTable({
               </Label>
               <Select
                 value={`${table.getState().pagination.pageSize}`}
-                onValueChange={(value) => {
+                onValueChange={(value: any) => {
                   table.setPageSize(Number(value))
                 }}
               >
@@ -749,29 +1153,115 @@ export function DataTable({
           </div>
         </div>
       </TabsContent>
-      <TabsContent
-        value="past-performance"
-        className="flex flex-col px-4 lg:px-6"
-      >
-        <div className="aspect-video w-full flex-1 rounded-lg border border-dashed"></div>
-      </TabsContent>
-      <TabsContent value="key-personnel" className="flex flex-col px-4 lg:px-6">
-        <div className="aspect-video w-full flex-1 rounded-lg border border-dashed"></div>
-      </TabsContent>
-      <TabsContent
-        value="focus-documents"
-        className="flex flex-col px-4 lg:px-6"
-      >
-        <div className="aspect-video w-full flex-1 rounded-lg border border-dashed"></div>
-      </TabsContent>
-      {customViews.map((view) => (
+      {allViews.map((view) => (
         <TabsContent
           key={view.value}
           value={view.value}
           className="flex flex-col px-4 lg:px-6"
         >
-          <div className="aspect-video w-full flex-1 rounded-lg border border-dashed p-6">
-            <div className="text-muted-foreground text-sm">{view.label}</div>
+          <div className="w-full flex-1 overflow-hidden rounded-lg border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-14">Cover</TableHead>
+                  <TableHead>Title</TableHead>
+                  <TableHead className="w-24">Rating</TableHead>
+                  <TableHead>Notes</TableHead>
+                  <TableHead className="w-12">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isSectionBooksLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-muted-foreground py-8 text-center">
+                      Loading books...
+                    </TableCell>
+                  </TableRow>
+                ) : sectionBooks.filter((book) => book.section_id === view.value).length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-muted-foreground py-8 text-center">
+                      No books in this section yet.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  sectionBooks
+                    .filter((book) => book.section_id === view.value)
+                    .map((book) => (
+                      <TableRow key={book.id}>
+                        <TableCell>
+                          {book.cover_url ? (
+                            <img
+                              src={book.cover_url}
+                              alt={book.title}
+                              className="h-12 w-9 rounded object-cover"
+                            />
+                          ) : (
+                            <div className="bg-accent h-12 w-9 rounded" />
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-medium">{book.title}</p>
+                            <p className="text-muted-foreground truncate text-xs">
+                              {book.author ?? "Unknown Author"}
+                            </p>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Input
+                            type="number"
+                            min={0}
+                            max={5}
+                            step={0.1}
+                            value={book.rating ?? ""}
+                            onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
+                              handleSectionBookRatingChange(book.id, event.target.value)
+                            }
+                            className="h-8"
+                            placeholder="0-5"
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Input
+                            value={book.notes ?? ""}
+                            onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
+                              handleSectionBookNotesChange(book.id, event.target.value)
+                            }
+                            className="h-8"
+                            placeholder="Add a short note"
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-muted-foreground"
+                              >
+                                <IconDotsVertical className="h-4 w-4" />
+                                <span className="sr-only">Open row actions</span>
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => handleSaveSectionBook(book.id)}>
+                                Save changes
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                variant="destructive"
+                                onClick={() => handleDeleteSectionBook(book.id)}
+                              >
+                                Remove
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                )}
+              </TableBody>
+            </Table>
           </div>
         </TabsContent>
       ))}

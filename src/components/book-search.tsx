@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react"
 import { searchBooks } from "@/lib/googleBooksApi"
 import { Loader2, Search, X } from "lucide-react"
-import { Badge } from "@/components/ui/badge"
+import { toast } from "sonner"
+import { useAuth } from "@/hooks/useAuth"
+import { supabase } from "@/lib/supabase"
 import { Button } from "@/components/ui/button"
 import {
   Select,
@@ -11,7 +13,10 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
-type ShelfSection = "want-to-read" | "currently-reading" | "finished"
+type SectionOption = {
+  id: string
+  name: string
+}
 
 interface SearchBook {
   id: string
@@ -24,24 +29,59 @@ interface SearchBook {
   description?: string
 }
 
-interface SavedBook extends SearchBook {
-  section: ShelfSection
-}
-
-const SECTION_LABELS: Record<ShelfSection, string> = {
-  "want-to-read": "Want to Read",
-  "currently-reading": "Currently Reading",
-  finished: "Finished",
+interface ExistingBookRow {
+  id: string
+  google_book_id: string
 }
 
 export function BookSearch() {
+  const { user } = useAuth()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [results, setResults] = useState<SearchBook[]>([])
   const [isLoading, setIsLoading] = useState(false)
-  const [selectedBook, setSelectedBook] = useState<SearchBook | null>(null)
-  const [selectedSection, setSelectedSection] = useState<ShelfSection | "">("")
-  const [savedBooks, setSavedBooks] = useState<SavedBook[]>([])
+  const [sections, setSections] = useState<SectionOption[]>([])
+  const [resultSections, setResultSections] = useState<Record<string, string>>({})
+  const [isAddingBookId, setIsAddingBookId] = useState<string | null>(null)
+
+  async function loadSections(profileId: string) {
+    const { data, error } = await supabase
+      .from("sections")
+      .select("id, name")
+      .eq("profile_id", profileId)
+      .order("sort_order", { ascending: true })
+      .order("created_at", { ascending: true })
+
+    if (error) {
+      toast.error("Failed to load sections")
+      return
+    }
+
+    setSections(data ?? [])
+  }
+
+  useEffect(() => {
+    if (!user) {
+      setSections([])
+      return
+    }
+
+    void loadSections(user.id)
+  }, [user])
+
+  useEffect(() => {
+    setResultSections((prev) => {
+      const next = { ...prev }
+
+      results.forEach((book) => {
+        if (!next[book.id]) {
+          next[book.id] = sections[0]?.id ?? ""
+        }
+      })
+
+      return next
+    })
+  }, [results, sections])
 
   useEffect(() => {
     const timer = setTimeout(async () => {
@@ -58,16 +98,17 @@ export function BookSearch() {
     return () => clearTimeout(timer)
   }, [searchQuery, isModalOpen])
 
-  const handleSelectBook = (book: SearchBook) => {
-    setSelectedBook(book)
-    setResults([])
+  const handleResultSectionChange = (bookId: string, sectionId: string) => {
+    setResultSections((prev) => ({
+      ...prev,
+      [bookId]: sectionId,
+    }))
   }
 
   const handleResetModal = () => {
     setSearchQuery("")
-    setSelectedBook(null)
-    setSelectedSection("")
     setResults([])
+    setResultSections({})
     setIsLoading(false)
   }
 
@@ -76,65 +117,94 @@ export function BookSearch() {
     handleResetModal()
   }
 
-  const handleSaveBook = () => {
-    if (!selectedBook || !selectedSection) {
+  const handleAddBookToSection = async (book: SearchBook) => {
+    if (!user) {
+      toast.error("Please sign in to add books")
       return
     }
 
-    const alreadyExists = savedBooks.some((book) => book.id === selectedBook.id)
-    if (alreadyExists) {
-      setSavedBooks((prev) =>
-        prev.map((book) =>
-          book.id === selectedBook.id
-            ? { ...book, section: selectedSection }
-            : book
-        )
-      )
-    } else {
-      setSavedBooks((prev) => [
-        ...prev,
-        { ...selectedBook, section: selectedSection },
-      ])
+    const sectionId = resultSections[book.id] ?? sections[0]?.id ?? ""
+
+    if (!sectionId) {
+      toast.error("Choose a section")
+      return
     }
 
-    handleCloseModal()
-  }
+    setIsAddingBookId(book.id)
 
-  const handleRemoveSavedBook = (id: string) => {
-    setSavedBooks((prev) => prev.filter((book) => book.id !== id))
+    const { data: existingRows, error: existingRowsError } = await supabase
+      .from("section_books")
+      .select("id, google_book_id")
+      .eq("profile_id", user.id)
+      .eq("google_book_id", book.id)
+      .limit(1)
+
+    if (existingRowsError) {
+      setIsAddingBookId(null)
+      toast.error("Failed to add book")
+      return
+    }
+
+    const existing = ((existingRows as ExistingBookRow[] | null) ?? [])[0]
+
+    if (existing?.id) {
+      const { error: updateError } = await supabase
+        .from("section_books")
+        .update({
+          section_id: sectionId,
+          title: book.title,
+          author: book.author || null,
+          cover_url: book.coverUrl || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", existing.id)
+        .eq("profile_id", user.id)
+
+      setIsAddingBookId(null)
+
+      if (updateError) {
+        toast.error("Failed to update book")
+        return
+      }
+
+      toast.success("Book moved to selected section")
+      window.dispatchEvent(new CustomEvent("section-books-changed"))
+      return
+    }
+
+    const { error: insertError } = await supabase
+      .from("section_books")
+      .insert({
+        section_id: sectionId,
+        profile_id: user.id,
+        google_book_id: book.id,
+        title: book.title,
+        author: book.author || null,
+        cover_url: book.coverUrl || null,
+        rating: null,
+        notes: null,
+        sort_order: 0,
+      })
+
+    setIsAddingBookId(null)
+
+    if (insertError) {
+      toast.error("Failed to add book")
+      return
+    }
+
+    toast.success("Book added to section")
+    window.dispatchEvent(new CustomEvent("section-books-changed"))
   }
 
   return (
     <div className="w-full space-y-4">
-      <Button onClick={() => setIsModalOpen(true)} className="w-full">
+      <Button onClick={() => setIsModalOpen(true)} className="w-full" disabled={!user}>
         Add Book to Shelf
       </Button>
 
-      {savedBooks.length > 0 && (
-        <div className="space-y-2">
-          {savedBooks.map((book) => (
-            <div
-              key={book.id}
-              className="flex items-center justify-between rounded-lg border border-input bg-background px-3 py-2"
-            >
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium">{book.title}</p>
-                <p className="text-muted-foreground truncate text-xs">{book.author}</p>
-              </div>
-              <div className="ml-3 flex items-center gap-2">
-                <Badge variant="outline">{SECTION_LABELS[book.section]}</Badge>
-                <button
-                  type="button"
-                  onClick={() => handleRemoveSavedBook(book.id)}
-                  className="text-muted-foreground hover:text-foreground"
-                  aria-label={`Remove ${book.title}`}
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
+      {!user && (
+        <p className="text-muted-foreground text-sm">Sign in to manage your shelf books.</p>
       )}
 
       {isModalOpen && (
@@ -174,11 +244,9 @@ export function BookSearch() {
 
             <div className="mt-3 max-h-64 space-y-1 overflow-y-auto rounded-lg border border-input">
               {results.map((book) => (
-                <button
+                <div
                   key={book.id}
-                  type="button"
-                  onClick={() => handleSelectBook(book)}
-                  className="hover:bg-accent flex w-full items-start gap-3 border-b border-input/50 px-3 py-2 text-left last:border-b-0"
+                  className="flex items-start gap-3 border-b border-input/50 px-3 py-2 last:border-b-0"
                 >
                   {book.coverUrl ? (
                     <img
@@ -189,11 +257,43 @@ export function BookSearch() {
                   ) : (
                     <div className="bg-accent h-14 w-10 flex-shrink-0 rounded" />
                   )}
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium">{book.title}</p>
                     <p className="text-muted-foreground truncate text-xs">{book.author}</p>
+                    <div className="mt-2">
+                      <Select
+                        value={resultSections[book.id] ?? ""}
+                        onValueChange={(value: string) =>
+                          handleResultSectionChange(book.id, value)
+                        }
+                      >
+                        <SelectTrigger className="h-8 w-44 text-xs">
+                          <SelectValue placeholder="Choose section" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {sections.map((section) => (
+                            <SelectItem key={section.id} value={section.id}>
+                              {section.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
-                </button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleAddBookToSection(book)}
+                    disabled={
+                      isAddingBookId === book.id ||
+                      sections.length === 0 ||
+                      !(resultSections[book.id] ?? sections[0]?.id)
+                    }
+                  >
+                    {isAddingBookId === book.id ? "Adding..." : "Add"}
+                  </Button>
+                </div>
               ))}
 
               {!isLoading && searchQuery && results.length === 0 && (
@@ -203,45 +303,15 @@ export function BookSearch() {
               )}
             </div>
 
-            {selectedBook && (
-              <div className="mt-4 space-y-3 rounded-lg border border-input bg-accent/10 p-3">
-                <div>
-                  <p className="text-sm font-semibold">{selectedBook.title}</p>
-                  <p className="text-muted-foreground text-xs">{selectedBook.author}</p>
-                </div>
-
-                <div className="space-y-2">
-                  <p className="text-xs font-medium">Select section</p>
-                  <Select
-                    value={selectedSection}
-                    onValueChange={(value: string) =>
-                      setSelectedSection(value as ShelfSection)
-                    }
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Choose shelf section" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="want-to-read">Want to Read</SelectItem>
-                      <SelectItem value="currently-reading">
-                        Currently Reading
-                      </SelectItem>
-                      <SelectItem value="finished">Finished</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+            {sections.length === 0 && (
+              <div className="text-muted-foreground mt-3 rounded-lg border border-dashed border-input p-3 text-sm">
+                No sections found. Create sections first to save books.
               </div>
             )}
 
             <div className="mt-4 flex justify-end gap-2">
               <Button variant="outline" onClick={handleCloseModal}>
-                Cancel
-              </Button>
-              <Button
-                onClick={handleSaveBook}
-                disabled={!selectedBook || !selectedSection}
-              >
-                Save
+                Done
               </Button>
             </div>
           </div>
