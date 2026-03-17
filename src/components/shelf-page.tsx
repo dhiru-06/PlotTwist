@@ -215,6 +215,7 @@ export function ShelfPage({ username = "maya", isPublicView = false }: ShelfPage
     if (!user && !isPublicView) return
 
     async function loadProfile() {
+      console.log("[ShelfPage] Loading profile:", { username, isPublicView, userId: user?.id })
       setIsShelvesLoading(true)
 
       const cacheKey = getShelfCacheKey(isPublicView, username, user?.id)
@@ -241,10 +242,13 @@ export function ShelfPage({ username = "maya", isPublicView = false }: ShelfPage
         const { data: publicProfile } = await supabase
           .from("profiles")
           .select("id, username, bio, theme")
-          .eq("username", username)
+          .ilike("username", username)
           .maybeSingle()
 
+        console.log("[ShelfPage] Public profile query result:", { username, publicProfile })
+
         if (!publicProfile?.id) {
+          console.log("[ShelfPage] No profile found for username:", username)
           setShelves([])
           setBookCount(0)
           setAvgRating(null)
@@ -290,6 +294,8 @@ export function ShelfPage({ username = "maya", isPublicView = false }: ShelfPage
         .select("id, name, sort_order")
         .eq("profile_id", profileId)
         .order("sort_order", { ascending: true })
+
+      console.log("[ShelfPage] Loaded data:", { booksCount: books?.length, sectionsCount: sections?.length, profileId })
 
       const nextBookCount = (books ?? []).length
       const rated = (books ?? []).filter((b: { rating: number | null }) => b.rating != null)
@@ -597,18 +603,18 @@ export function ShelfPage({ username = "maya", isPublicView = false }: ShelfPage
 
   return (
     <div className={`min-h-screen bg-gradient-to-br ${currentTheme.background}`}>
-      {/* Header */}
-      <header className="backdrop-blur-sm bg-background/80 border-b border-input/50 px-8 py-5 flex items-center justify-between sticky top-0 z-40">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => window.history.back()}
-            className="flex items-center gap-2 text-sm font-medium hover:text-foreground/80 transition-all hover:gap-3"
-          >
-            ← Back
-          </button>
-        </div>
-        <div className="flex items-center gap-3">
-          {!isPublicView && (
+      {/* Header - hidden in public view */}
+      {!isPublicView && (
+        <header className="backdrop-blur-sm bg-background/80 border-b border-input/50 px-8 py-5 flex items-center justify-between sticky top-0 z-40">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => window.history.back()}
+              className="flex items-center gap-2 text-sm font-medium hover:text-foreground/80 transition-all hover:gap-3"
+            >
+              ← Back
+            </button>
+          </div>
+          <div className="flex items-center gap-3">
             <button
               onClick={() => setShowSettings(!showSettings)}
               className="flex items-center gap-2 px-4 py-2 rounded-lg border border-input hover:bg-accent text-sm font-medium transition-all"
@@ -619,17 +625,17 @@ export function ShelfPage({ username = "maya", isPublicView = false }: ShelfPage
               </svg>
               <span>Customize</span>
             </button>
-          )}
-          <button className="flex items-center gap-2 px-4 py-2 rounded-lg border border-input hover:bg-accent text-sm font-medium transition-all">
-            <span>Share</span>
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-            </svg>
-          </button>
-        </div>
-      </header>
+            <button className="flex items-center gap-2 px-4 py-2 rounded-lg border border-input hover:bg-accent text-sm font-medium transition-all">
+              <span>Share</span>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+              </svg>
+            </button>
+          </div>
+        </header>
+      )}
 
-      {!isPublicView && showMobileProfile && (
+      {showMobileProfile && (
         <div
           className="fixed inset-0 z-50 bg-black/50 md:hidden"
           onClick={() => setShowMobileProfile(false)}
@@ -736,20 +742,18 @@ export function ShelfPage({ username = "maya", isPublicView = false }: ShelfPage
 
         {/* Main Content - Bookshelf */}
         <main className="flex-1 p-4 md:p-8 max-w-6xl mx-auto w-full md:ml-80">
-          {!isPublicView && (
-            <div className="md:hidden mb-4">
-              <button
-                onClick={() => setShowMobileProfile(true)}
-                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-input bg-background/90 hover:bg-accent transition-colors"
-                aria-label="Open profile panel"
-              >
-                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
-                <span className="text-sm font-medium">Profile</span>
-              </button>
-            </div>
-          )}
+          <div className="md:hidden mb-4">
+            <button
+              onClick={() => setShowMobileProfile(true)}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-input bg-background/90 hover:bg-accent transition-colors"
+              aria-label="Open profile panel"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+              <span className="text-sm font-medium">Profile</span>
+            </button>
+          </div>
 
           <div className="mb-8 flex items-center justify-center">
             <div className="rounded-full border border-input/60 bg-background/70 px-5 py-2 backdrop-blur-sm shadow-sm">
@@ -810,26 +814,6 @@ export function ShelfPage({ username = "maya", isPublicView = false }: ShelfPage
                         (() => {
                           const isHovered = hoveredBook?.shelfIndex === shelfIndex && hoveredBook?.bookIndex === index
                           const resolvedHue = book.cover_url ? (imageHueMap[book.cover_url] ?? book.hue) : book.hue
-
-                          const translateValue = (() => {
-                            if (!hoveredBook || hoveredBook.shelfIndex !== shelfIndex) {
-                              return "translateX(0)"
-                            }
-
-                            const diff = index - hoveredBook.bookIndex
-
-                            if (diff === 0) return "translateX(0)"
-
-                            const direction = diff > 0 ? 1 : -1
-                            const distance = Math.abs(diff)
-
-                            const baseShift = 70
-                            const maxShift = 200
-
-                            const shift = Math.min(baseShift * (3 - Math.min(distance, 3)), maxShift)
-
-                            return `translateX(${direction * shift}px)`
-                          })()
 
                           return (
                             <div

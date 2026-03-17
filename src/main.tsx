@@ -16,28 +16,14 @@ createRoot(document.getElementById('root')!).render(
     <AuthProvider>
       <BrowserRouter>
         <Routes>
-          {/* Public Routes */}
+          {/* Specific routes first */}
           <Route path="/sign-in" element={<LoginForm />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
-          <Route path="/@:username" element={<PublicShelf />} />
-
-          {/* Protected Routes */}
-          <Route
-            path="/"
-            element={
-              <ProtectedRoute>
-                <App />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/shelf"
-            element={
-              <ProtectedRoute>
-                <ShelfPage />
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/" element={<ProtectedRoute><App /></ProtectedRoute>} />
+          <Route path="/shelf" element={<ProtectedRoute><ShelfPage /></ProtectedRoute>} />
+          
+          {/* Catch-all public username route - must be last */}
+          <Route path="/:username" element={<PublicShelf />} />
         </Routes>
         <Toaster position="top-right" richColors closeButton />
       </BrowserRouter>
