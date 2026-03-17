@@ -278,21 +278,21 @@ export function SectionCards() {
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 px-4 lg:px-6 w-full min-h-screen md:min-h-[60vh]">
-      <div className="min-h-[50vh] md:min-h-full flex flex-col">
-        <CardHeader className="flex-1 flex flex-col justify-between pb-0">
+    <div className="grid w-full grid-cols-1 gap-4 px-4 lg:grid-cols-2 lg:px-6">
+      <div className="flex flex-col">
+        <CardHeader className="pb-2">
           <div>
-            <CardTitle className="text-6xl font-bold mb-6 leading-tight text-foreground tracking-tight">
-              Your reading life,<br />arranged like a gallery.
+            <CardTitle className="mb-4 text-3xl font-bold leading-tight tracking-tight text-foreground sm:text-5xl lg:text-5xl">
+              Your library,<br />curated by you.
             </CardTitle>
-            <p className="text-base text-muted-foreground mb-8 leading-relaxed max-w-sm font-light">
-              Search for a book, add a rating and a note, then place it on a shelf. Share a clean, custom link in your bio — or keep it private.
+            <p className="mb-6 max-w-md text-lg leading-relaxed text-muted-foreground lg:text-base">
+              Find a book, rate it, add a note, and shelve it. Share your link anytime.
             </p>
           </div>
         </CardHeader>
-        <CardFooter className="flex-col items-stretch gap-4 mt-auto">
+        <CardFooter className="flex-col items-stretch gap-3 pt-1">
           <BookSearch />
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div className="p-4 border border-input rounded-lg">
               <div className="text-sm font-semibold mb-1">Shelf views</div>
               <p className="text-xs text-muted-foreground">Want to Read, Currently Reading, Finished.</p>
@@ -308,48 +308,55 @@ export function SectionCards() {
           </div>
         </CardFooter>
       </div>
-      <div className="min-h-[50vh] md:min-h-full flex flex-col">
-        <div className="flex-1 p-6 flex flex-col">
-          <Card className="bg-card border border-input rounded-2xl p-8 flex flex-col flex-1">
-            <div className="flex flex-row items-start justify-between mb-6">
-              <div>
-                <h2 className="text-l text-muted-foreground tracking-tight mb-2">Your link</h2>
-                <p className="text-2xl font-bold tracking-tight">
+      <div className="flex flex-col">
+        <div className="flex flex-1 flex-col p-2 sm:p-4 lg:p-6">
+          <Card className="flex flex-1 flex-col rounded-2xl border border-input sm-card p-4 sm:p-6 lg:p-8">
+            <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <h2 className="mb-1 text-sm tracking-tight text-muted-foreground">Your link</h2>
+                <p className="truncate text-lg font-bold tracking-tight sm:text-2xl">
                   {loadingUsername ? "plottwist.tech/@..." : publicShelfUrl}
                 </p>
               </div>
-              <div className="flex gap-2">
-                <button
+              <div className="flex flex-wrap gap-2 sm:justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
                   onClick={openUsernameModal}
-                  className="px-3 py-1.5 text-xs font-medium text-foreground border border-input rounded-lg hover:bg-accent transition-colors whitespace-nowrap"
+                  className="whitespace-nowrap"
                 >
                   Edit Username →
-                </button>
-                <button
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
                   onClick={() => navigate("/shelf")}
-                  className="px-3 py-1.5 text-xs font-medium text-foreground border border-input rounded-lg hover:bg-accent transition-colors whitespace-nowrap">
+                  className="whitespace-nowrap"
+                >
                   Preview →
-                </button>
+                </Button>
               </div>
             </div>
-            <div className="w-full h-56 bg-gradient-to-br from-amber-100 via-orange-100 to-purple-200 rounded-xl flex items-center justify-center mb-8 overflow-hidden">
+            <div className="mb-6 flex h-24 w-full items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-amber-100 via-orange-100 to-purple-200 sm:h-24">
               <img
                 src={bookStackImage}
                 alt="Book Stack"
                 className="w-full h-full object-cover"
               />
             </div>
-            <div className="flex justify-around mt-auto pt-8 gap-3">
-              <div className="flex-1 p-4 border border-input rounded-lg text-center bg-accent/5">
-                <div className="text-3xl font-bold tracking-tight">1</div>
+            <div className="mt-auto grid grid-cols-3 gap-2 pt-1 sm:gap-3 sm:pt-1">
+              <div className="flex-1 p-2 border border-input rounded-lg text-center bg-accent/5">
+                <div className="text-2xl font-bold tracking-tight sm:text-3xl">1</div>
                 <div className="text-xs text-muted-foreground mt-2">Books</div>
               </div>
-              <div className="flex-1 p-4 border border-input rounded-lg text-center bg-accent/5">
-                <div className="text-3xl font-bold tracking-tight">5</div>
+              <div className="flex-1 p-2 border border-input rounded-lg text-center bg-accent/5">
+                <div className="text-2xl font-bold tracking-tight sm:text-3xl">5</div>
                 <div className="text-xs text-muted-foreground mt-2">Avg rating</div>
               </div>
-              <div className="flex-1 p-4 border border-input rounded-lg text-center bg-accent/5">
-                <div className="text-3xl font-bold tracking-tight">3</div>
+              <div className="flex-1 p-2 border border-input rounded-lg text-center bg-accent/5">
+                <div className="text-2xl font-bold tracking-tight sm:text-3xl">3</div>
                 <div className="text-xs text-muted-foreground mt-2">Shelves</div>
               </div>
             </div>

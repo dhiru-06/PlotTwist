@@ -296,8 +296,8 @@ export function ShelfPage({ username = "maya", isPublicView = false }: ShelfPage
       const nextAvgRating =
         rated.length > 0
           ? Math.round(
-              (rated.reduce((sum: number, b: { rating: number }) => sum + b.rating, 0) / rated.length) * 10
-            ) / 10
+            (rated.reduce((sum: number, b: { rating: number }) => sum + b.rating, 0) / rated.length) * 10
+          ) / 10
           : null
 
       const sectionOrder = (sections ?? []).map((section: { id: string; name: string }) => section)
@@ -671,9 +671,8 @@ export function ShelfPage({ username = "maya", isPublicView = false }: ShelfPage
                     <button
                       key={themeName}
                       onClick={() => setTheme(themeName)}
-                      className={`p-4 rounded-lg border-2 transition-all capitalize ${
-                        theme === themeName ? "border-purple-500 bg-purple-50 dark:bg-purple-950" : "border-input hover:border-purple-300"
-                      }`}
+                      className={`p-4 rounded-lg border-2 transition-all capitalize ${theme === themeName ? "border-purple-500 bg-purple-50 dark:bg-purple-950" : "border-input hover:border-purple-300"
+                        }`}
                     >
                       <div className={`h-16 rounded bg-gradient-to-br ${THEMES[themeName].background} mb-2`}></div>
                       {themeName}
@@ -754,7 +753,7 @@ export function ShelfPage({ username = "maya", isPublicView = false }: ShelfPage
 
           <div className="mb-8 flex items-center justify-center">
             <div className="rounded-full border border-input/60 bg-background/70 px-5 py-2 backdrop-blur-sm shadow-sm">
-              <p className="text-[10px] uppercase tracking-[0.28em] text-muted-foreground text-center">PlotTwist Shelf</p>
+              <p className="text-[10px] uppercase tracking-[0.28em] text-muted-foreground text-center">Bibliothèque</p>
             </div>
           </div>
 
@@ -778,7 +777,7 @@ export function ShelfPage({ username = "maya", isPublicView = false }: ShelfPage
                   </div>
 
                   {/* Books on this shelf */}
-                  <div className="relative pb-6">
+                  <div className="relative pb-6 overflow-visible">
                     {shelfScrollState[shelfIndex]?.canScrollLeft && (
                       <button
                         type="button"
@@ -805,97 +804,126 @@ export function ShelfPage({ username = "maya", isPublicView = false }: ShelfPage
                       }}
                       onScroll={() => updateShelfScrollState(shelfIndex)}
                       className="flex gap-3 items-end justify-start overflow-x-auto scroll-smooth px-10 md:px-0"
+                      style={{ willChange: "transform", perspective: "1000px" }}
                     >
-                    {shelf.books.map((book, index) => (
-                      (() => {
-                        const isHovered = hoveredBook?.shelfIndex === shelfIndex && hoveredBook?.bookIndex === index
-                        const shouldShiftRight =
-                          hoveredBook?.shelfIndex === shelfIndex && hoveredBook.bookIndex < index
-                        const resolvedHue = book.cover_url ? (imageHueMap[book.cover_url] ?? book.hue) : book.hue
+                      {shelf.books.map((book, index) => (
+                        (() => {
+                          const isHovered = hoveredBook?.shelfIndex === shelfIndex && hoveredBook?.bookIndex === index
+                          const resolvedHue = book.cover_url ? (imageHueMap[book.cover_url] ?? book.hue) : book.hue
 
-                        return (
-                      <div
-                        key={book.id}
-                        onMouseEnter={() => setHoveredBook({ shelfIndex, bookIndex: index })}
-                        onMouseLeave={() => setHoveredBook(null)}
-                        onClick={() => setSelectedBook(book)}
-                        className={`book-container cursor-pointer relative transition-all duration-700 ${
-                          isHovered ? "z-30" : "z-10"
-                        }`}
-                        style={{
-                          perspective: "2000px",
-                          animationDelay: `${index * 100}ms`,
-                          transform: shouldShiftRight ? "translateX(136px)" : "translateX(0)",
-                        }}
-                      >
-                        {/* 3D Book - spine forward by default, face rotates in on hover */}
-                        <div className="relative w-10 h-52" style={{ transformStyle: "preserve-3d" }}>
-                          {/* Book Spine (default visible) */}
-                          <div
-                            className="book-spine relative w-10 h-52 rounded-sm shadow-lg"
-                            style={{
-                              backgroundImage: book.cover_url
-                                ? `linear-gradient(180deg, rgba(0,0,0,0.18), rgba(0,0,0,0.5)), url('${book.cover_url}')`
-                                : `linear-gradient(180deg, hsl(${resolvedHue} 70% 58%), hsl(${(resolvedHue + 36) % 360} 68% 36%))`,
-                              backgroundSize: "cover",
-                              backgroundPosition: "center",
-                              boxShadow: "4px 4px 12px rgba(0,0,0,0.3), inset -2px 0 4px rgba(0,0,0,0.2)",
-                            }}
-                          >
-                            {/* Book texture */}
-                            <div className="absolute inset-0 opacity-20" style={{
-                              backgroundImage: `
-                                repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,0.05) 2px, rgba(255,255,255,0.05) 4px),
-                                repeating-linear-gradient(90deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px)
-                              `
-                            }}></div>
+                          const translateValue = (() => {
+                            if (!hoveredBook || hoveredBook.shelfIndex !== shelfIndex) {
+                              return "translateX(0)"
+                            }
 
-                            {/* Glossy overlay */}
-                            <div className="absolute inset-0 bg-gradient-to-r from-white/20 via-transparent to-black/20 rounded-sm"></div>
+                            const diff = index - hoveredBook.bookIndex
 
-                            {/* Spine text */}
-                            <div className="absolute inset-0 flex items-center justify-center">
-                              <div className="writing-mode-vertical text-white font-bold text-sm px-2 text-center drop-shadow-lg" style={{
-                                textShadow: "2px 2px 4px rgba(0,0,0,0.5)"
-                              }}>
-                                {book.title}
-                              </div>
-                            </div>
+                            if (diff === 0) return "translateX(0)"
 
-                            {/* Spine edge highlight */}
-                            <div className="absolute left-0 top-0 bottom-0 w-1 bg-white/30 rounded-l-sm"></div>
-                            <div className="absolute right-0 top-0 bottom-0 w-1 bg-black/30 rounded-r-sm"></div>
-                          </div>
+                            const direction = diff > 0 ? 1 : -1
+                            const distance = Math.abs(diff)
 
-                          {/* Front Cover (rotates into view on hover) */}
-                          <div
-                            className="book-face absolute top-0 left-[9px] w-32 h-52 shadow-2xl overflow-hidden"
-                            style={{
-                              backgroundImage: book.cover_url
-                                ? `url('${book.cover_url}')`
-                                : `linear-gradient(135deg, hsl(${resolvedHue} 72% 56%), hsl(${(resolvedHue + 28) % 360} 72% 36%))`,
-                              backgroundSize: "cover",
-                              backgroundPosition: "center",
-                              borderRadius: "0 4px 4px 0",
-                              boxShadow: "10px 10px 30px rgba(0,0,0,0.5), inset 0 0 20px rgba(255,255,255,0.1)",
-                            }}
-                          >
-                            {/* Texture */}
-                            <div className="absolute inset-0 opacity-25" style={{
-                              backgroundImage: `
+                            const baseShift = 70
+                            const maxShift = 200
+
+                            const shift = Math.min(baseShift * (3 - Math.min(distance, 3)), maxShift)
+
+                            return `translateX(${direction * shift}px)`
+                          })()
+
+                          return (
+                            <div
+                              key={book.id}
+                              onMouseEnter={() =>
+                                setHoveredBook({ shelfIndex: shelfIndex, bookIndex: index })
+                              }
+                              onMouseLeave={() => setHoveredBook(null)}
+                              onClick={() => setSelectedBook(book)}
+                              className={`book-container cursor-pointer relative ${isHovered ? "z-50" : "z-10"
+                                }`}
+                              style={{
+                                perspective: "2000px",
+                                animationDelay: `${index * 100}ms`,
+                                transform: (() => {
+                                  if (!hoveredBook || hoveredBook.shelfIndex !== shelfIndex) {
+                                    return "translateX(0)"
+                                  }
+
+                                  const diff = index - hoveredBook.bookIndex
+
+                                  if (diff === 0) {
+                                    return "scale(1.05)" // hovered book
+                                  }
+
+                                  const direction = diff > 0 ? 1 : -1
+                                  const distance = Math.abs(diff)
+
+                                  // 🔥 tuned values (clean + visible)
+                                  const shift = Math.max(0, 180 - distance * 40)
+
+                                  return `translateX(${direction * shift}px)`
+                                })(),
+                              }}
+                            >
+                              {/* 3D Book - spine forward by default, face rotates in on hover */}
+                              <div className="relative w-10 h-52" style={{ transformStyle: "preserve-3d" }}>
+                                {/* Book Spine (default visible) */}
+                                <div
+                                  className="book-spine relative w-10 h-52 rounded-sm shadow-lg overflow-hidden"
+                                  style={{
+                                    backgroundImage: book.cover_url
+                                      ? `url('${book.cover_url}')`
+                                      : `linear-gradient(135deg, hsl(${resolvedHue} 72% 56%), hsl(${(resolvedHue + 28) % 360} 72% 36%))`,
+                                    backgroundSize: "cover",
+                                    backgroundPosition: "center",
+                                    boxShadow: "4px 4px 12px rgba(0,0,0,0.3), inset -2px 0 4px rgba(0,0,0,0.2)",
+                                  }}
+                                >
+                                  {/* Dark overlay */}
+                                  <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/60 to-black/70"></div>
+
+                                  {/* Spine text */}
+                                  <div className="absolute inset-0 flex items-center justify-center px-0.5">
+                                    <div className="writing-mode-vertical text-gray-100 font-bold text-[12px] px-0.5 text-center" style={{
+                                      textShadow: "0 0 12px rgba(0,0,0,2), 2px 2px 4px rgba(0,0,0,0.9), -1px -1px 2px rgba(0,0,0,0.7)",
+                                      wordBreak: "break-word",
+                                      lineHeight: "1.5",
+                                      letterSpacing: "0.5px",
+                                    }}>
+                                      {book.title}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Front Cover (rotates into view on hover) */}
+                                <div
+                                  className="book-face absolute top-0 left-[9px] w-32 h-52 shadow-2xl overflow-hidden"
+                                  style={{
+                                    backgroundImage: book.cover_url
+                                      ? `url('${book.cover_url}')`
+                                      : `linear-gradient(135deg, hsl(${resolvedHue} 72% 56%), hsl(${(resolvedHue + 28) % 360} 72% 36%))`,
+                                    backgroundSize: "cover",
+                                    backgroundPosition: "center",
+                                    borderRadius: "0 4px 4px 0",
+                                    boxShadow: "10px 10px 30px rgba(0,0,0,0.5), inset 0 0 20px rgba(255,255,255,0.1)",
+                                  }}
+                                >
+                                  {/* Texture */}
+                                  <div className="absolute inset-0 opacity-25" style={{
+                                    backgroundImage: `
                                 repeating-linear-gradient(90deg, transparent, transparent 1px, rgba(255,255,255,0.02) 1px, rgba(255,255,255,0.02) 2px),
                                 repeating-linear-gradient(0deg, transparent, transparent 1px, rgba(0,0,0,0.02) 1px, rgba(0,0,0,0.02) 2px)
                               `
-                            }}></div>
+                                  }}></div>
 
-                            {/* Lighting effect */}
-                            <div className="absolute inset-0 bg-gradient-to-br from-white/30 via-transparent to-black/30 opacity-60"></div>
-                          </div>
-                        </div>
-                      </div>
-                        )
-                      })()
-                    ))}
+                                  {/* Lighting effect */}
+                                  <div className="absolute inset-0 bg-gradient-to-br from-white/30 via-transparent to-black/30 opacity-60"></div>
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        })()
+                      ))}
                     </div>
                   </div>
 
@@ -905,7 +933,7 @@ export function ShelfPage({ username = "maya", isPublicView = false }: ShelfPage
                       backgroundImage: "repeating-linear-gradient(90deg, transparent, transparent 3px, rgba(0,0,0,0.1) 3px, rgba(0,0,0,0.1) 4px)"
                     }}></div>
                   </div>
-                  
+
                   {/* Shelf shadow */}
                   <div className="h-1 bg-gradient-to-b from-black/10 to-transparent rounded-sm"></div>
                 </div>
@@ -993,10 +1021,11 @@ export function ShelfPage({ username = "maya", isPublicView = false }: ShelfPage
           }
         }
         
-        .book-container {
-          animation: fadeInUp 0.6s ease-out forwards;
-          opacity: 0;
-        }
+          .book-container {
+            animation: fadeInUp 0.6s ease-out forwards;
+            opacity: 0;
+            transition: transform 0.4s ease; /* ← THIS is critical */
+          }
 
         .book-spine,
         .book-face {

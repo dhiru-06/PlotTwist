@@ -24,12 +24,10 @@ import {
   IconChevronsLeft,
   IconChevronsRight,
   IconCircleCheckFilled,
-  IconDeviceFloppy,
   IconDotsVertical,
   IconGripVertical,
   IconLoader,
   IconSettings2,
-  IconTrash,
   IconTrendingUp,
   IconX,
 } from "@tabler/icons-react"
@@ -394,6 +392,11 @@ export function DataTable({
   const [isSectionBooksLoading, setIsSectionBooksLoading] = React.useState(false)
   const [sectionBooks, setSectionBooks] = React.useState<SectionBookRecord[]>([])
   const [sectionBooksRefreshKey, setSectionBooksRefreshKey] = React.useState(0)
+  const [isBookEditorOpen, setIsBookEditorOpen] = React.useState(false)
+  const [editingBookId, setEditingBookId] = React.useState<string | null>(null)
+  const [editingBookRating, setEditingBookRating] = React.useState("")
+  const [editingBookNotes, setEditingBookNotes] = React.useState("")
+  const [isSavingBookEdit, setIsSavingBookEdit] = React.useState(false)
   const [isSectionManagerOpen, setIsSectionManagerOpen] = React.useState(false)
   const [sectionMode, setSectionMode] = React.useState<"create" | "edit">(
     "create"
@@ -581,35 +584,6 @@ export function DataTable({
     }
   }, [])
 
-  async function handleSaveSectionBook(bookId: string) {
-    if (!user) {
-      toast.error("Please sign in to update books")
-      return
-    }
-
-    const book = sectionBooks.find((item) => item.id === bookId)
-    if (!book) return
-
-    const { error } = await supabase
-      .from("section_books")
-      .update({
-        rating: book.rating,
-        notes: book.notes?.trim() || null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", bookId)
-      .eq("profile_id", user.id)
-
-    if (error) {
-      toast.error("Failed to save book changes")
-      return
-    }
-
-    clearShelfCache()
-    window.dispatchEvent(new CustomEvent("section-books-changed"))
-    toast.success("Book updated")
-  }
-
   async function handleDeleteSectionBook(bookId: string) {
     if (!user) {
       toast.error("Please sign in to remove books")
@@ -633,40 +607,81 @@ export function DataTable({
     toast.success("Book removed")
   }
 
-  function handleSectionBookRatingChange(bookId: string, value: string) {
-    setSectionBooks((prev) =>
-      prev.map((book) => {
-        if (book.id !== bookId) return book
-
-        if (value.trim() === "") {
-          return {
-            ...book,
-            rating: null,
-          }
-        }
-
-        const parsed = Number(value)
-        if (Number.isNaN(parsed)) return book
-
-        return {
-          ...book,
-          rating: Math.min(5, Math.max(0, parsed)),
-        }
-      })
-    )
+  function openBookEditor(book: SectionBookRecord) {
+    setEditingBookId(book.id)
+    setEditingBookRating(book.rating?.toString() ?? "")
+    setEditingBookNotes(book.notes ?? "")
+    setIsBookEditorOpen(true)
   }
 
-  function handleSectionBookNotesChange(bookId: string, notes: string) {
+  function closeBookEditor(open: boolean) {
+    setIsBookEditorOpen(open)
+
+    if (!open) {
+      setEditingBookId(null)
+      setEditingBookRating("")
+      setEditingBookNotes("")
+      setIsSavingBookEdit(false)
+    }
+  }
+
+  async function handleSaveBookEditor() {
+    if (!user) {
+      toast.error("Please sign in to update books")
+      return
+    }
+
+    if (!editingBookId) return
+
+    const ratingValue = editingBookRating.trim()
+    let normalizedRating: number | null = null
+
+    if (ratingValue !== "") {
+      const parsedRating = Number(ratingValue)
+
+      if (Number.isNaN(parsedRating)) {
+        toast.error("Rating must be a number between 0 and 5")
+        return
+      }
+
+      normalizedRating = Math.min(5, Math.max(0, parsedRating))
+    }
+
+    setIsSavingBookEdit(true)
+
+    const { error } = await supabase
+      .from("section_books")
+      .update({
+        rating: normalizedRating,
+        notes: editingBookNotes.trim() || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", editingBookId)
+      .eq("profile_id", user.id)
+
+    setIsSavingBookEdit(false)
+
+    if (error) {
+      toast.error("Failed to save book changes")
+      return
+    }
+
     setSectionBooks((prev) =>
       prev.map((book) =>
-        book.id === bookId
+        book.id === editingBookId
           ? {
             ...book,
-            notes,
+            rating: normalizedRating,
+            notes: editingBookNotes.trim() || null,
           }
           : book
       )
     )
+
+    clearShelfCache()
+    window.dispatchEvent(new CustomEvent("section-books-changed"))
+    toast.success("Book updated")
+    closeBookEditor(false)
   }
 
   function handleDragEnd(event: DragEndEvent) {
@@ -1189,24 +1204,24 @@ export function DataTable({
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-16 text-center">Actions</TableHead>
                   <TableHead className="w-14">Cover</TableHead>
                   <TableHead>Title</TableHead>
                   <TableHead className="w-24">Rating</TableHead>
                   <TableHead>Notes</TableHead>
-                  <TableHead className="w-16 text-center">Save</TableHead>
-                  <TableHead className="w-16 text-center">Delete</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isSectionBooksLoading ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-muted-foreground py-8 text-center">
+
+                    <TableCell colSpan={5} className="text-muted-foreground py-8 text-center">
                       Loading books...
                     </TableCell>
                   </TableRow>
                 ) : sectionBooks.filter((book) => book.section_id === view.value).length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-muted-foreground py-8 text-center">
+                    <TableCell colSpan={5} className="text-muted-foreground py-8 text-center">
                       No books in this section yet.
                     </TableCell>
                   </TableRow>
@@ -1215,6 +1230,34 @@ export function DataTable({
                     .filter((book) => book.section_id === view.value)
                     .map((book) => (
                       <TableRow key={book.id}>
+                        <TableCell>
+                          <div className="flex justify-center">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-muted-foreground"
+                                  aria-label={`Actions for ${book.title}`}
+                                >
+                                  <IconDotsVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-36">
+                                <DropdownMenuItem onClick={() => openBookEditor(book)}>
+                                  Edit
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  variant="destructive"
+                                  onClick={() => handleDeleteSectionBook(book.id)}
+                                >
+                                  Delete
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                        </TableCell>
                         <TableCell>
                           {book.cover_url ? (
                             <img
@@ -1235,55 +1278,16 @@ export function DataTable({
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Input
-                            type="number"
-                            min={0}
-                            max={5}
-                            step={0.1}
-                            value={book.rating ?? ""}
-                            onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
-                              handleSectionBookRatingChange(book.id, event.target.value)
-                            }
-                            className="h-8"
-                            placeholder="0-5"
-                          />
+                          <span className="text-sm font-medium">
+                            {book.rating ?? "-"}
+                          </span>
                         </TableCell>
                         <TableCell>
-                          <Input
-                            value={book.notes ?? ""}
-                            onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
-                              handleSectionBookNotesChange(book.id, event.target.value)
-                            }
-                            className="h-8"
-                            placeholder="Add a short note"
-                          />
+                          <p className="text-muted-foreground truncate text-sm">
+                            {book.notes?.trim() ? book.notes : "No notes"}
+                          </p>
                         </TableCell>
-                        <TableCell>
-                          <div className="flex justify-center">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-muted-foreground"
-                              onClick={() => handleSaveSectionBook(book.id)}
-                              aria-label={`Save ${book.title}`}
-                            >
-                              <IconDeviceFloppy className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex justify-center">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                              onClick={() => handleDeleteSectionBook(book.id)}
-                              aria-label={`Delete ${book.title}`}
-                            >
-                              <IconTrash className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
+
                       </TableRow>
                     ))
                 )}
@@ -1292,6 +1296,57 @@ export function DataTable({
           </div>
         </TabsContent>
       ))}
+
+      <Drawer
+        direction={isMobile ? "bottom" : "right"}
+        open={isBookEditorOpen}
+        onOpenChange={closeBookEditor}
+      >
+        <DrawerContent>
+          <DrawerHeader>
+            <DrawerTitle>Edit Book</DrawerTitle>
+            <DrawerDescription>
+              Update rating and notes for your shelf.
+            </DrawerDescription>
+          </DrawerHeader>
+          <div className="space-y-4 px-4 pb-2">
+            <div className="space-y-2">
+              <Label htmlFor="book-rating">Rating (0 to 5)</Label>
+              <Input
+                id="book-rating"
+                type="number"
+                min={0}
+                max={5}
+                step={0.1}
+                value={editingBookRating}
+                onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
+                  setEditingBookRating(event.target.value)
+                }
+                placeholder="0-5"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="book-notes">Notes</Label>
+              <Input
+                id="book-notes"
+                value={editingBookNotes}
+                onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
+                  setEditingBookNotes(event.target.value)
+                }
+                placeholder="Add a short note"
+              />
+            </div>
+          </div>
+          <DrawerFooter>
+            <Button onClick={handleSaveBookEditor} disabled={isSavingBookEdit}>
+              {isSavingBookEdit ? "Saving..." : "Save"}
+            </Button>
+            <DrawerClose asChild>
+              <Button variant="outline">Cancel</Button>
+            </DrawerClose>
+          </DrawerFooter>
+        </DrawerContent>
+      </Drawer>
     </Tabs>
   )
 }
