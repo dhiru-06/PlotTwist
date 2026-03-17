@@ -247,11 +247,6 @@ const columns: ColumnDef<z.infer<typeof schema>>[] = [
       <form
         onSubmit={(e) => {
           e.preventDefault()
-          toast.promise(new Promise((resolve) => setTimeout(resolve, 1000)), {
-            loading: `Saving ${row.original.header}`,
-            success: "Done",
-            error: "Error",
-          })
         }}
       >
         <Label htmlFor={`${row.original.id}-target`} className="sr-only">
@@ -590,6 +585,8 @@ export function DataTable({
       return
     }
 
+    const deletingToastId = toast.loading("Deleting book...")
+
     const { error } = await supabase
       .from("section_books")
       .delete()
@@ -597,6 +594,7 @@ export function DataTable({
       .eq("profile_id", user.id)
 
     if (error) {
+      toast.dismiss(deletingToastId)
       toast.error("Failed to remove book")
       return
     }
@@ -604,6 +602,7 @@ export function DataTable({
     clearShelfCache()
     setSectionBooks((prev) => prev.filter((book) => book.id !== bookId))
     window.dispatchEvent(new CustomEvent("section-books-changed"))
+    toast.dismiss(deletingToastId)
     toast.success("Book removed")
   }
 
@@ -648,6 +647,7 @@ export function DataTable({
     }
 
     setIsSavingBookEdit(true)
+    const savingToastId = toast.loading("Saving book changes...")
 
     const { error } = await supabase
       .from("section_books")

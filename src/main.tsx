@@ -9,6 +9,7 @@ import { PublicShelf } from '@/pages/PublicShelf'
 import App from './App.tsx'
 import { ShelfPage } from './components/shelf-page'
 import { LoginForm } from './components/sign-in.tsx'
+import { Toaster } from '@/components/ui/sonner'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -38,6 +39,7 @@ createRoot(document.getElementById('root')!).render(
             }
           />
         </Routes>
+        <Toaster position="top-right" richColors closeButton />
       </BrowserRouter>
     </AuthProvider>
   </StrictMode>,
