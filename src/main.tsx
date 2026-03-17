@@ -6,6 +6,7 @@ import { AuthProvider } from '@/contexts/AuthProvider'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { AuthCallback } from '@/pages/AuthCallback'
 import { PublicShelf } from '@/pages/PublicShelf'
+import { Landing } from '@/pages/Landing'
 import App from './App.tsx'
 import { ShelfPage } from './components/shelf-page'
 import { LoginForm } from './components/sign-in.tsx'
@@ -16,10 +17,13 @@ createRoot(document.getElementById('root')!).render(
     <AuthProvider>
       <BrowserRouter>
         <Routes>
-          {/* Specific routes first */}
+          {/* Public routes */}
+          <Route path="/" element={<Landing />} />
           <Route path="/sign-in" element={<LoginForm />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
-          <Route path="/" element={<ProtectedRoute><App /></ProtectedRoute>} />
+
+          {/* Protected routes */}
+          <Route path="/home" element={<ProtectedRoute><App /></ProtectedRoute>} />
           <Route path="/shelf" element={<ProtectedRoute><ShelfPage /></ProtectedRoute>} />
           
           {/* Catch-all public username route - must be last */}
