@@ -138,12 +138,62 @@ type SectionBookRecord = {
   notes: string | null
 }
 
+type DataTableCachePayload<T> = {
+  savedAt: number
+  data: T
+}
+
+const DATA_TABLE_CACHE_TTL_MS = 2 * 60 * 1000
+
+function getSectionsCacheKey(profileId: string) {
+  return `plottwist:data-table-cache:sections:${profileId}`
+}
+
+function getSectionBooksCacheKey(profileId: string, sectionIds: string[]) {
+  const normalizedIds = [...sectionIds].sort().join(",")
+  return `plottwist:data-table-cache:section-books:${profileId}:${normalizedIds}`
+}
+
+function readDataTableCache<T>(key: string): T | null {
+  try {
+    const raw = localStorage.getItem(key)
+    if (!raw) return null
+
+    const parsed = JSON.parse(raw) as DataTableCachePayload<T>
+    if (!parsed || typeof parsed.savedAt !== "number") return null
+
+    if (Date.now() - parsed.savedAt > DATA_TABLE_CACHE_TTL_MS) {
+      localStorage.removeItem(key)
+      return null
+    }
+
+    return parsed.data
+  } catch {
+    return null
+  }
+}
+
+function writeDataTableCache<T>(key: string, data: T) {
+  try {
+    const payload: DataTableCachePayload<T> = {
+      savedAt: Date.now(),
+      data,
+    }
+    localStorage.setItem(key, JSON.stringify(payload))
+  } catch {
+    // Ignore cache write failures.
+  }
+}
+
 function clearShelfCache() {
   try {
     const keysToRemove: string[] = []
     for (let index = 0; index < localStorage.length; index += 1) {
       const key = localStorage.key(index)
-      if (key?.startsWith("plottwist:shelf-cache:")) {
+      if (
+        key?.startsWith("plottwist:shelf-cache:") ||
+        key?.startsWith("plottwist:data-table-cache:")
+      ) {
         keysToRemove.push(key)
       }
     }
@@ -386,6 +436,7 @@ export function DataTable({
   const [isSubmittingSection, setIsSubmittingSection] = React.useState(false)
   const [isSectionBooksLoading, setIsSectionBooksLoading] = React.useState(false)
   const [sectionBooks, setSectionBooks] = React.useState<SectionBookRecord[]>([])
+  const [sectionsRefreshKey, setSectionsRefreshKey] = React.useState(0)
   const [sectionBooksRefreshKey, setSectionBooksRefreshKey] = React.useState(0)
   const [isBookEditorOpen, setIsBookEditorOpen] = React.useState(false)
   const [editingBookId, setEditingBookId] = React.useState<string | null>(null)
@@ -470,6 +521,47 @@ export function DataTable({
 
       setIsSectionsLoading(true)
 
+      const cacheKey = getSectionsCacheKey(user.id)
+      const shouldUseCache = sectionsRefreshKey === 0
+      const cachedSections = shouldUseCache ? readDataTableCache<SectionRecord[]>(cacheKey) : null
+
+      if (cachedSections) {
+        const mappedDefaultViews = cachedSections
+          .filter((section: SectionRecord) => section.is_default)
+          .map((section: SectionRecord) => ({
+            value: section.id,
+            label: section.name,
+            slug: section.slug,
+            sortOrder: section.sort_order,
+          }))
+
+        const mappedCustomViews = cachedSections
+          .filter((section: SectionRecord) => !section.is_default)
+          .map((section: SectionRecord) => ({
+            value: section.id,
+            label: section.name,
+            slug: section.slug,
+            sortOrder: section.sort_order,
+          }))
+
+        const defaultSection = cachedSections.find(
+          (section: SectionRecord) => section.is_default
+        )
+
+        setDefaultViews(mappedDefaultViews)
+        setCustomViews(mappedCustomViews)
+
+        const fallbackViewId =
+          defaultSection?.id ??
+          mappedDefaultViews[0]?.value ??
+          mappedCustomViews[0]?.value ??
+          ""
+
+        setActiveView(fallbackViewId)
+        setIsSectionsLoading(false)
+        return
+      }
+
       const { data: sections, error } = await supabase
         .from("sections")
         .select("id, name, slug, sort_order, is_default")
@@ -485,6 +577,8 @@ export function DataTable({
         toast.error("Failed to load sections")
         return
       }
+
+      writeDataTableCache(cacheKey, (sections ?? []) as SectionRecord[])
 
       const mappedDefaultViews = (sections ?? [])
         .filter((section: SectionRecord) => section.is_default)
@@ -525,7 +619,7 @@ export function DataTable({
     return () => {
       isCancelled = true
     }
-  }, [user])
+  }, [user, sectionsRefreshKey])
 
   React.useEffect(() => {
     let isCancelled = false
@@ -539,6 +633,15 @@ export function DataTable({
       setIsSectionBooksLoading(true)
 
       const sectionIds = allViews.map((view) => view.value)
+      const cacheKey = getSectionBooksCacheKey(user.id, sectionIds)
+      const shouldUseCache = sectionBooksRefreshKey === 0
+      const cachedBooks = shouldUseCache ? readDataTableCache<SectionBookRecord[]>(cacheKey) : null
+
+      if (cachedBooks) {
+        setSectionBooks(cachedBooks)
+        setIsSectionBooksLoading(false)
+        return
+      }
 
       const { data: books, error } = await supabase
         .from("section_books")
@@ -557,7 +660,9 @@ export function DataTable({
         return
       }
 
-      setSectionBooks((books ?? []) as SectionBookRecord[])
+      const nextBooks = (books ?? []) as SectionBookRecord[]
+      writeDataTableCache(cacheKey, nextBooks)
+      setSectionBooks(nextBooks)
     }
 
     void loadSectionBooks()
@@ -568,13 +673,19 @@ export function DataTable({
   }, [user, allViews, sectionBooksRefreshKey])
 
   React.useEffect(() => {
+    function handleSectionsChanged() {
+      setSectionsRefreshKey((prev) => prev + 1)
+    }
+
     function handleSectionBooksChanged() {
       setSectionBooksRefreshKey((prev) => prev + 1)
     }
 
+    window.addEventListener("sections-changed", handleSectionsChanged)
     window.addEventListener("section-books-changed", handleSectionBooksChanged)
 
     return () => {
+      window.removeEventListener("sections-changed", handleSectionsChanged)
       window.removeEventListener("section-books-changed", handleSectionBooksChanged)
     }
   }, [])
@@ -662,6 +773,7 @@ export function DataTable({
     setIsSavingBookEdit(false)
 
     if (error) {
+      toast.dismiss(savingToastId)
       toast.error("Failed to save book changes")
       return
     }
@@ -680,6 +792,7 @@ export function DataTable({
 
     clearShelfCache()
     window.dispatchEvent(new CustomEvent("section-books-changed"))
+    toast.dismiss(savingToastId)
     toast.success("Book updated")
     closeBookEditor(false)
   }

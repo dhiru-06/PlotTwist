@@ -209,7 +209,9 @@ export function ShelfPage({ username = "maya", isPublicView = false }: ShelfPage
     Record<number, { canScrollLeft: boolean; canScrollRight: boolean }>
   >({})
   const [socialLinks, setSocialLinks] = useState<SocialLink[]>(DEFAULT_SOCIAL_LINKS)
+  const [isLinkCopied, setIsLinkCopied] = useState(false)
   const shelfRowRefs = useRef<Record<number, HTMLDivElement | null>>({})
+  const copyResetTimerRef = useRef<number | null>(null)
 
   useEffect(() => {
     if (!user && !isPublicView) return
@@ -547,6 +549,50 @@ export function ShelfPage({ username = "maya", isPublicView = false }: ShelfPage
     }
   }, [imageHueMap, shelves])
 
+  useEffect(() => {
+    return () => {
+      if (copyResetTimerRef.current != null) {
+        window.clearTimeout(copyResetTimerRef.current)
+      }
+    }
+  }, [])
+
+  const shareSlug = encodeURIComponent((profileUsername || username).trim())
+  const shareUrl = typeof window !== "undefined"
+    ? `${window.location.origin}/${shareSlug}`
+    : `https://plottwist.tech/${shareSlug}`
+
+  const copyLinkToClipboard = async () => {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(shareUrl)
+      } else {
+        const textArea = document.createElement("textarea")
+        textArea.value = shareUrl
+        textArea.setAttribute("readonly", "")
+        textArea.style.position = "absolute"
+        textArea.style.left = "-9999px"
+        document.body.appendChild(textArea)
+        textArea.select()
+        document.execCommand("copy")
+        document.body.removeChild(textArea)
+      }
+
+      setIsLinkCopied(true)
+      toast.success("Shelf link copied")
+
+      if (copyResetTimerRef.current != null) {
+        window.clearTimeout(copyResetTimerRef.current)
+      }
+
+      copyResetTimerRef.current = window.setTimeout(() => {
+        setIsLinkCopied(false)
+      }, 1800)
+    } catch {
+      toast.error("Could not copy link")
+    }
+  }
+
   const profileCard = (
     <Card className="bg-gradient-to-br from-white/80 to-white/40 dark:from-neutral-800/80 dark:to-neutral-900/40 backdrop-blur-xl border border-input/50 rounded-3xl p-6 shadow-xl">
       <div className="flex items-center gap-3 mb-4">
@@ -625,8 +671,13 @@ export function ShelfPage({ username = "maya", isPublicView = false }: ShelfPage
               </svg>
               <span>Customize</span>
             </button>
-            <button className="flex items-center gap-2 px-4 py-2 rounded-lg border border-input hover:bg-accent text-sm font-medium transition-all">
-              <span>Share</span>
+            <button
+              onClick={copyLinkToClipboard}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg border border-input hover:bg-accent text-sm font-medium transition-all"
+              aria-label="Copy public shelf link"
+              title={shareUrl}
+            >
+              <span>{isLinkCopied ? "Copied" : "Share"}</span>
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
               </svg>
@@ -742,7 +793,7 @@ export function ShelfPage({ username = "maya", isPublicView = false }: ShelfPage
 
         {/* Main Content - Bookshelf */}
         <main className="flex-1 p-4 md:p-8 max-w-6xl mx-auto w-full md:ml-80">
-          <div className="md:hidden mb-4">
+          <div className="md:hidden mb-4 flex items-center justify-between gap-3">
             <button
               onClick={() => setShowMobileProfile(true)}
               className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-input bg-background/90 hover:bg-accent transition-colors"
@@ -753,11 +804,21 @@ export function ShelfPage({ username = "maya", isPublicView = false }: ShelfPage
               </svg>
               <span className="text-sm font-medium">Profile</span>
             </button>
+
+            <div className="rounded-full border border-input/60 bg-background/70 px-3 py-1.5 backdrop-blur-sm shadow-sm">
+              <p className="text-center">
+                <span className="text-s font-semibold bg-gradient-to-r from-purple-600 via-violet-500 to-pink-500 bg-clip-text text-transparent tracking-tight">
+                  ✦ PlotTwist
+                </span>
+              </p>
+            </div>
           </div>
 
-          <div className="mb-8 flex items-center justify-center">
+          <div className="mb-8 hidden items-center justify-center md:flex">
             <div className="rounded-full border border-input/60 bg-background/70 px-5 py-2 backdrop-blur-sm shadow-sm">
-              <p className="text-[10px] uppercase tracking-[0.28em] text-muted-foreground text-center">Bibliothèque</p>
+              <p className="text-center"><span className="text-base font-bold bg-gradient-to-r from-purple-600 via-violet-500 to-pink-500 bg-clip-text text-transparent tracking-tight">
+                ✦ PlotTwist
+              </span></p>
             </div>
           </div>
 

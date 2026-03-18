@@ -51,6 +51,23 @@ function buildInitialUsername(email: string | undefined, userId: string) {
   return `${userId.slice(0, 6)}`
 }
 
+function buildRandomDefaultUsername(userId: string) {
+  const randomSuffix = Math.random().toString(36).slice(2, 8)
+  const fallback = userId.slice(0, 6).toLowerCase()
+  return normalizeUsername(`reader_${randomSuffix || fallback}`)
+}
+
+function slugifySectionName(value: string) {
+  const slug = value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+
+  return slug || "my-shelf"
+}
+
 export function SectionCards() {
   const navigate = useNavigate()
   const { user } = useAuth()
@@ -62,11 +79,16 @@ export function SectionCards() {
   const [checkingUsername, setCheckingUsername] = useState(false)
   const [usernameAvailable, setUsernameAvailable] = useState<boolean | null>(null)
   const [usernameSuggestions, setUsernameSuggestions] = useState<string[]>([])
+  const [bookCount, setBookCount] = useState(0)
+  const [avgRating, setAvgRating] = useState<number | null>(null)
+  const [shelfCount, setShelfCount] = useState(0)
+  const [loadingStats, setLoadingStats] = useState(true)
   const publicUsername = username || "reader"
   const publicShelfUrl = `plottwist.tech/@${publicUsername}`
   const normalizedDraftUsername = normalizeUsername(draftUsername)
   const isDraftTooShort = normalizedDraftUsername.length < 3
   const isCurrentUsername = normalizedDraftUsername === username
+  const avgRatingLabel = avgRating != null ? avgRating.toFixed(1) : "0.0"
 
   const checkUsernameInProfiles = async (candidate: string, userId: string) => {
     const { data, error } = await supabase
@@ -83,6 +105,50 @@ export function SectionCards() {
     return { available: !data, error: false }
   }
 
+  const ensureDefaultSection = async (profileId: string) => {
+    const { data: sections, error } = await supabase
+      .from("sections")
+      .select("id, slug, sort_order, is_default")
+      .eq("profile_id", profileId)
+
+    if (error) return
+
+    const existingSections = sections ?? []
+    if (existingSections.some((section: { is_default: boolean }) => section.is_default)) {
+      return
+    }
+
+    const defaultName = "My Shelf"
+    const baseSlug = slugifySectionName(defaultName)
+    const usedSlugs = new Set(existingSections.map((section: { slug: string | null }) => section.slug).filter(Boolean))
+
+    let slugCandidate = baseSlug
+    let suffix = 2
+    while (usedSlugs.has(slugCandidate)) {
+      slugCandidate = `${baseSlug}-${suffix}`
+      suffix += 1
+    }
+
+    const nextSortOrder =
+      existingSections.length > 0
+        ? Math.max(...existingSections.map((section: { sort_order: number | null }) => section.sort_order ?? 0)) + 1
+        : 0
+
+    const { error: insertError } = await supabase
+      .from("sections")
+      .insert({
+        profile_id: profileId,
+        name: defaultName,
+        slug: slugCandidate,
+        sort_order: nextSortOrder,
+        is_default: true,
+      })
+
+    if (!insertError) {
+      window.dispatchEvent(new CustomEvent("sections-changed"))
+    }
+  }
+
   useEffect(() => {
     const ensureProfile = async () => {
       if (!user) {
@@ -92,6 +158,7 @@ export function SectionCards() {
 
       setLoadingUsername(true)
       const preferredEmail = getPreferredEmail(user)
+      const randomDefaultUsername = buildRandomDefaultUsername(user.id)
       const baseUsername = buildInitialUsername(preferredEmail, user.id)
 
       setUsername((prev) => prev || baseUsername)
@@ -126,6 +193,7 @@ export function SectionCards() {
             if (!updateError) {
               setUsername(candidate)
               setDraftUsername(candidate)
+              await ensureDefaultSection(user.id)
               setLoadingUsername(false)
               return
             }
@@ -136,6 +204,7 @@ export function SectionCards() {
 
         setUsername(currentUsername)
         setDraftUsername(currentUsername)
+        await ensureDefaultSection(user.id)
         setLoadingUsername(false)
         return
       }
@@ -143,8 +212,8 @@ export function SectionCards() {
       for (let attempt = 0; attempt < 10; attempt += 1) {
         const candidate =
           attempt === 0
-            ? baseUsername
-            : `${baseUsername.slice(0, 26)}_${attempt}`
+            ? randomDefaultUsername
+            : `${randomDefaultUsername.slice(0, 26)}_${attempt}`
 
         const { error: insertError } = await supabase.from("profiles").insert({
           id: user.id,
@@ -154,26 +223,87 @@ export function SectionCards() {
         if (!insertError) {
           setUsername(candidate)
           setDraftUsername(candidate)
+          await ensureDefaultSection(user.id)
           setLoadingUsername(false)
           return
         }
 
         if (insertError.code !== "23505") {
           toast.error("Failed to create username")
-          setUsername(baseUsername)
-          setDraftUsername(baseUsername)
+          setUsername(randomDefaultUsername)
+          setDraftUsername(randomDefaultUsername)
           setLoadingUsername(false)
           return
         }
       }
 
       toast.error("Could not create a unique username")
-      setUsername(baseUsername)
-      setDraftUsername(baseUsername)
+      setUsername(randomDefaultUsername)
+      setDraftUsername(randomDefaultUsername)
       setLoadingUsername(false)
     }
 
     ensureProfile()
+  }, [user])
+
+  useEffect(() => {
+    const loadStats = async () => {
+      if (!user) {
+        setBookCount(0)
+        setAvgRating(null)
+        setShelfCount(0)
+        setLoadingStats(false)
+        return
+      }
+
+      setLoadingStats(true)
+
+      const [{ data: books, error: booksError }, { data: sections, error: sectionsError }] = await Promise.all([
+        supabase
+          .from("section_books")
+          .select("rating")
+          .eq("profile_id", user.id),
+        supabase
+          .from("sections")
+          .select("id")
+          .eq("profile_id", user.id),
+      ])
+
+      if (booksError || sectionsError) {
+        setLoadingStats(false)
+        return
+      }
+
+      const bookRows = books ?? []
+      const ratedBooks = bookRows.filter((book: { rating: number | null }) => book.rating != null)
+      const nextAvgRating =
+        ratedBooks.length > 0
+          ? Math.round(
+            (ratedBooks.reduce((sum: number, book: { rating: number }) => sum + book.rating, 0) /
+              ratedBooks.length) *
+              10
+          ) / 10
+          : null
+
+      setBookCount(bookRows.length)
+      setAvgRating(nextAvgRating)
+      setShelfCount((sections ?? []).length)
+      setLoadingStats(false)
+    }
+
+    void loadStats()
+
+    const handleStatsChanged = () => {
+      void loadStats()
+    }
+
+    window.addEventListener("section-books-changed", handleStatsChanged)
+    window.addEventListener("sections-changed", handleStatsChanged)
+
+    return () => {
+      window.removeEventListener("section-books-changed", handleStatsChanged)
+      window.removeEventListener("sections-changed", handleStatsChanged)
+    }
   }, [user])
 
   useEffect(() => {
@@ -348,15 +478,21 @@ export function SectionCards() {
             </div>
             <div className="mt-auto grid grid-cols-3 gap-2 pt-1 sm:gap-3 sm:pt-1">
               <div className="flex-1 p-2 border border-input rounded-lg text-center bg-accent/5">
-                <div className="text-2xl font-bold tracking-tight sm:text-3xl">1</div>
+                <div className="text-2xl font-bold tracking-tight sm:text-3xl">
+                  {loadingStats ? "..." : bookCount}
+                </div>
                 <div className="text-xs text-muted-foreground mt-2">Books</div>
               </div>
               <div className="flex-1 p-2 border border-input rounded-lg text-center bg-accent/5">
-                <div className="text-2xl font-bold tracking-tight sm:text-3xl">5</div>
+                <div className="text-2xl font-bold tracking-tight sm:text-3xl">
+                  {loadingStats ? "..." : avgRatingLabel}
+                </div>
                 <div className="text-xs text-muted-foreground mt-2">Avg rating</div>
               </div>
               <div className="flex-1 p-2 border border-input rounded-lg text-center bg-accent/5">
-                <div className="text-2xl font-bold tracking-tight sm:text-3xl">3</div>
+                <div className="text-2xl font-bold tracking-tight sm:text-3xl">
+                  {loadingStats ? "..." : shelfCount}
+                </div>
                 <div className="text-xs text-muted-foreground mt-2">Shelves</div>
               </div>
             </div>

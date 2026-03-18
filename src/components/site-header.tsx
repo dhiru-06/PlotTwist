@@ -13,7 +13,9 @@ export function SiteHeader() {
           orientation="vertical"
           className="mx-2 data-[orientation=vertical]:h-4"
         />
-        <h1 className="text-base font-medium">PlotTwist</h1>
+        <span className="text-lg font-bold bg-gradient-to-r from-purple-600 to-pink-500 bg-clip-text text-transparent">
+          ✦ PlotTwist
+        </span>
         <div className="ml-auto flex items-center gap-2">
           <NavUser />
         </div>
