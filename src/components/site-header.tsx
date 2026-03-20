@@ -11,9 +11,11 @@ export function SiteHeader() {
           orientation="vertical"
           className="mx-2 data-[orientation=vertical]:h-4"
         />
-        <span className="text-lg font-bold bg-gradient-to-r from-purple-600 to-pink-500 bg-clip-text text-transparent">
-          ✦ PlotTwist
-        </span>
+        <a href="https://plottwist.tech" rel="noopener noreferrer">
+          <span className="text-lg font-bold bg-gradient-to-r from-purple-600 to-pink-500 bg-clip-text text-transparent">
+            ✦ PlotTwist
+          </span>
+        </a>
         <div className="ml-auto flex items-center gap-2">
           <NavUser />
         </div>

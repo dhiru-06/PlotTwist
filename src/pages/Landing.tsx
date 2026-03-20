@@ -132,13 +132,15 @@ export function Landing() {
         }}
       >
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
-          <span className="text-xl font-bold bg-gradient-to-r from-purple-600 via-violet-500 to-pink-500 bg-clip-text text-transparent tracking-tight">
-            ✦ PlotTwist
-          </span>
+          <a href="https://plottwist.tech" rel="noopener noreferrer">
+            <span className="text-xl font-bold bg-gradient-to-r from-purple-600 via-violet-500 to-pink-500 bg-clip-text text-transparent tracking-tight">
+              ✦ PlotTwist
+            </span>
+          </a>
           <div className="flex items-center gap-3">
             <button
               onClick={handleGetStarted}
-              className="px-5 py-2 rounded-full bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-all shadow-lg shadow-primary/20"
+              className="cursor-pointer px-5 py-2 rounded-full bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-all shadow-lg shadow-primary/20"
             >
               Sign In
             </button>
@@ -176,7 +178,7 @@ export function Landing() {
           <div className="hero-cta flex flex-col sm:flex-row gap-4 justify-center items-center">
             <button
               onClick={handleGetStarted}
-              className="group flex items-center gap-3 px-8 py-4 rounded-2xl bg-primary text-primary-foreground font-semibold text-base hover:bg-primary/90 transition-all shadow-2xl shadow-primary/30 hover:shadow-primary/50 hover:-translate-y-0.5"
+              className=" cursor-pointer group flex items-center gap-3 px-8 py-4 rounded-2xl bg-primary text-primary-foreground font-semibold text-base hover:bg-primary/90 transition-all shadow-2xl shadow-primary/30 hover:shadow-primary/50 hover:-translate-y-0.5"
             >
               Build your shelf
               <span className="group-hover:translate-x-1 transition-transform">→</span>
@@ -329,7 +331,7 @@ export function Landing() {
               </p>
               <button
                 onClick={handleGetStarted}
-                className="group inline-flex items-center gap-3 px-10 py-5 rounded-2xl bg-primary text-primary-foreground font-bold text-base hover:bg-primary/90 transition-all shadow-2xl shadow-primary/30 hover:-translate-y-0.5"
+                className="cursor-pointer group inline-flex items-center gap-3 px-10 py-5 rounded-2xl bg-primary text-primary-foreground font-bold text-base hover:bg-primary/90 transition-all shadow-2xl shadow-primary/30 hover:-translate-y-0.5"
               >
                 Get started - it's free
                 <span className="group-hover:translate-x-1 transition-transform">→</span>
@@ -341,13 +343,20 @@ export function Landing() {
 
       {/* Footer */}
       <footer className="border-t border-input/50 py-6 md:py-8 px-5 md:px-6">
-        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-          <span className="text-lg font-bold bg-gradient-to-r from-purple-600 to-pink-500 bg-clip-text text-transparent">
-            ✦ PlotTwist
-          </span>
+        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 mb-4">
+          <a href="https://plottwist.tech" rel="noopener noreferrer">
+            <span className="text-lg font-bold bg-gradient-to-r from-purple-600 to-pink-500 bg-clip-text text-transparent">
+              ✦ PlotTwist
+            </span>
+          </a>
           <span>Made with ❤️ by <a href="https://www.linkedin.com/in/dheerajdommaraju8526b8165/" target="_blank" rel="noopener noreferrer">Dheeraj</a></span>
           <p className="text-xs text-muted-foreground">
             Your library. Your story.
+          </p>
+        </div>
+        <div className="max-w-6xl mx-auto text-center">
+          <p className="text-xs text-muted-foreground">
+            © 2026 PlotTwist. All rights reserved.
           </p>
         </div>
       </footer>

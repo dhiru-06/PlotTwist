@@ -807,18 +807,23 @@ export function ShelfPage({ username = "maya", isPublicView = false }: ShelfPage
 
             <div className="rounded-full border border-input/60 bg-background/70 px-3 py-1.5 backdrop-blur-sm shadow-sm">
               <p className="text-center">
+                <a href="https://plottwist.tech" rel="noopener noreferrer">
                 <span className="text-s font-semibold bg-gradient-to-r from-purple-600 via-violet-500 to-pink-500 bg-clip-text text-transparent tracking-tight">
                   ✦ PlotTwist
                 </span>
+                </a>
               </p>
             </div>
           </div>
 
           <div className="mb-8 hidden items-center justify-center md:flex">
             <div className="rounded-full border border-input/60 bg-background/70 px-5 py-2 backdrop-blur-sm shadow-sm">
-              <p className="text-center"><span className="text-base font-bold bg-gradient-to-r from-purple-600 via-violet-500 to-pink-500 bg-clip-text text-transparent tracking-tight">
+              <p className="text-center">
+                <a href="https://plottwist.tech" rel="noopener noreferrer">
+                <span className="text-base font-bold bg-gradient-to-r from-purple-600 via-violet-500 to-pink-500 bg-clip-text text-transparent tracking-tight">
                 ✦ PlotTwist
-              </span></p>
+              </span>
+              </a></p>
             </div>
           </div>
 
@@ -1035,12 +1040,12 @@ export function ShelfPage({ username = "maya", isPublicView = false }: ShelfPage
             )}
 
             <div className="mb-5 rounded-xl border border-input/30 bg-accent/40 p-4">
-              <p className="mb-2 inline-flex rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-primary">Book Rating</p>
-              <p className="text-2xl font-bold mt-1">{selectedBook.rating != null ? `★ ${selectedBook.rating}` : "Not rated"}</p>
+              <p className="mb-2 inline-flex rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-semibold tracking-[0.14em] text-primary">My Rating</p>
+              <p className="text-2xl font-bold mt-1">{selectedBook.rating != null ? `${selectedBook.rating} ★` : "Not rated"}</p>
             </div>
 
             <div className="rounded-xl border border-input/30 bg-accent/20 p-4">
-              <p className="mb-2 inline-flex rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-primary">My Thoughts</p>
+              <p className="mb-2 inline-flex rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-semibold tracking-[0.14em] text-primary">My Thoughts</p>
               <p className="text-sm leading-relaxed">
                 {selectedBook.notes?.trim() ? selectedBook.notes : "No notes yet."}
               </p>

@@ -85,8 +85,7 @@ export function LoginForm({
         </CardContent>
       </Card>
       <FieldDescription className="px-6 text-center">
-        By clicking continue, you agree to our <a href="#">Terms of Service</a>{" "}
-        and <a href="#">Privacy Policy</a>.
+        Build beautiful public libraries of the books you've read and loved
       </FieldDescription>
     </div>
     </div>
