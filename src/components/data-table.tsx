@@ -81,6 +81,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import {
   Select,
@@ -1440,10 +1441,10 @@ export function DataTable({
             </div>
             <div className="space-y-2">
               <Label htmlFor="book-notes">Notes</Label>
-              <Input
+              <Textarea
                 id="book-notes"
                 value={editingBookNotes}
-                onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
+                onChange={(event: React.ChangeEvent<HTMLTextAreaElement>) =>
                   setEditingBookNotes(event.target.value)
                 }
                 placeholder="Add a short note"
