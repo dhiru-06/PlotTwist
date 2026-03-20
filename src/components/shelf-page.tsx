@@ -140,7 +140,7 @@ type ShelfCachePayload = {
 const DEFAULT_SOCIAL_LINKS: SocialLink[] = [
   { platform: "Twitter", url: "", icon: "𝕏" },
   { platform: "Instagram", url: "", icon: "📷" },
-  { platform: "Goodreads", url: "", icon: "📚" },
+  { platform: "LinkedIn", url: "", icon: "🔗" },
 ]
 
 function getShelfCacheKey(isPublicView: boolean, username: string, userId?: string) {
