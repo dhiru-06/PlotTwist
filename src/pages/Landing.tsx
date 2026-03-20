@@ -185,7 +185,7 @@ export function Landing() {
             </button>
 
             <a
-              href="/dmajor"
+              href="/dheeraj"
               className="px-8 py-4 rounded-2xl border border-input hover:bg-accent text-sm font-semibold transition-all text-muted-foreground hover:text-foreground"
             >
               See a live shelf example
