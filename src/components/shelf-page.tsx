@@ -599,8 +599,13 @@ export function ShelfPage({ username = "maya", isPublicView = false }: ShelfPage
         <div className="flex items-center justify-center w-16 h-16 rounded-3xl bg-primary text-2xl font-bold text-primary-foreground shadow-lg flex-shrink-0">
           {profileUsername.charAt(0).toUpperCase()}
         </div>
-        <div>
-          <h2 className="text-2xl font-bold bg-gradient-to-br from-purple-600 to-pink-500 bg-clip-text text-transparent">@{profileUsername}</h2>
+        <div className="min-w-0">
+          <h2
+            className="truncate text-2xl font-bold bg-gradient-to-br from-purple-600 to-pink-500 bg-clip-text text-transparent"
+            title={`@${profileUsername}`}
+          >
+            @{profileUsername}
+          </h2>
         </div>
       </div>
       {bio && (
