@@ -454,7 +454,7 @@ export function SectionCards() {
                   variant="outline"
                   size="sm"
                   onClick={openUsernameModal}
-                  className="whitespace-nowrap"
+                  className="whitespace-nowrap cursor-pointer"
                 >
                   Edit Username →
                 </Button>
@@ -463,7 +463,7 @@ export function SectionCards() {
                   variant="outline"
                   size="sm"
                   onClick={() => navigate("/shelf")}
-                  className="whitespace-nowrap"
+                  className="whitespace-nowrap cursor-pointer"
                 >
                   Preview →
                 </Button>
