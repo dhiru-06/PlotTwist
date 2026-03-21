@@ -172,7 +172,7 @@ export function Landing() {
           </h1>
 
           <p className="hero-sub text-base md:text-xl text-muted-foreground max-w-2xl mx-auto mb-7 md:mb-10 leading-relaxed">
-            PlotTwist lets you build a beautiful public library of the books you've read, loved, and want to explore — then share it with a single link.
+            PlotTwist lets you build a beautiful public library of the books you've read, loved, and want to explore, then share it with a single link.
           </p>
 
           <div className="hero-cta flex flex-col sm:flex-row gap-4 justify-center items-center">
