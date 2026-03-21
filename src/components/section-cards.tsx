@@ -57,17 +57,6 @@ function buildRandomDefaultUsername(userId: string) {
   return normalizeUsername(`reader_${randomSuffix || fallback}`)
 }
 
-function slugifySectionName(value: string) {
-  const slug = value
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9\s-]/g, "")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-")
-
-  return slug || "my-shelf"
-}
-
 export function SectionCards() {
   const navigate = useNavigate()
   const { user } = useAuth()
@@ -103,50 +92,6 @@ export function SectionCards() {
     }
 
     return { available: !data, error: false }
-  }
-
-  const ensureDefaultSection = async (profileId: string) => {
-    const { data: sections, error } = await supabase
-      .from("sections")
-      .select("id, slug, sort_order, is_default")
-      .eq("profile_id", profileId)
-
-    if (error) return
-
-    const existingSections = sections ?? []
-    if (existingSections.some((section: { is_default: boolean }) => section.is_default)) {
-      return
-    }
-
-    const defaultName = "My Shelf"
-    const baseSlug = slugifySectionName(defaultName)
-    const usedSlugs = new Set(existingSections.map((section: { slug: string | null }) => section.slug).filter(Boolean))
-
-    let slugCandidate = baseSlug
-    let suffix = 2
-    while (usedSlugs.has(slugCandidate)) {
-      slugCandidate = `${baseSlug}-${suffix}`
-      suffix += 1
-    }
-
-    const nextSortOrder =
-      existingSections.length > 0
-        ? Math.max(...existingSections.map((section: { sort_order: number | null }) => section.sort_order ?? 0)) + 1
-        : 0
-
-    const { error: insertError } = await supabase
-      .from("sections")
-      .insert({
-        profile_id: profileId,
-        name: defaultName,
-        slug: slugCandidate,
-        sort_order: nextSortOrder,
-        is_default: true,
-      })
-
-    if (!insertError) {
-      window.dispatchEvent(new CustomEvent("sections-changed"))
-    }
   }
 
   useEffect(() => {
@@ -193,7 +138,6 @@ export function SectionCards() {
             if (!updateError) {
               setUsername(candidate)
               setDraftUsername(candidate)
-              await ensureDefaultSection(user.id)
               setLoadingUsername(false)
               return
             }
@@ -204,7 +148,6 @@ export function SectionCards() {
 
         setUsername(currentUsername)
         setDraftUsername(currentUsername)
-        await ensureDefaultSection(user.id)
         setLoadingUsername(false)
         return
       }
@@ -223,7 +166,6 @@ export function SectionCards() {
         if (!insertError) {
           setUsername(candidate)
           setDraftUsername(candidate)
-          await ensureDefaultSection(user.id)
           setLoadingUsername(false)
           return
         }
