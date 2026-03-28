@@ -349,7 +349,7 @@ export function Landing() {
               ✦ PlotTwist
             </span>
           </a>
-          <span>Made with ❤️ by <a href="https://www.linkedin.com/in/dheerajdommaraju8526b8165/" target="_blank" rel="noopener noreferrer">Dheeraj</a></span>
+          <span>Made with ❤️ from India</span>
           <p className="text-xs text-muted-foreground">
             Your library. Your story.
           </p>
