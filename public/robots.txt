@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+
+Disallow: /home
+Disallow: /shelf
+Disallow: /auth/callback
+
+Sitemap: https://plottwist.tech/sitemap.xml

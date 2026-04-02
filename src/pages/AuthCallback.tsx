@@ -1,10 +1,18 @@
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
+import { useSeo } from '@/hooks/useSeo'
 
 export function AuthCallback() {
   const navigate = useNavigate()
   const { user, loading } = useAuth()
+
+  useSeo({
+    title: 'Completing Sign In - PlotTwist',
+    description: 'Completing authentication for PlotTwist.',
+    path: '/auth/callback',
+    noIndex: true,
+  })
 
   useEffect(() => {
     if (!loading && user) {

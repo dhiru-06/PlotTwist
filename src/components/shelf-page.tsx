@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 import { useAuth } from "@/hooks/useAuth"
+import { useSeo } from "@/hooks/useSeo"
 import { supabase } from "@/lib/supabase"
 import { Card } from "@/components/ui/card"
 
@@ -212,6 +213,35 @@ export function ShelfPage({ username = "maya", isPublicView = false }: ShelfPage
   const [isLinkCopied, setIsLinkCopied] = useState(false)
   const shelfRowRefs = useRef<Record<number, HTMLDivElement | null>>({})
   const copyResetTimerRef = useRef<number | null>(null)
+
+  const publicPath = `/${(profileUsername || username).toLowerCase()}`
+  const publicDescription = bio?.trim()
+    ? `${profileUsername}'s bookshelf on PlotTwist. ${bio.trim().slice(0, 120)}`
+    : `Explore ${profileUsername}'s bookshelf with curated sections, ratings, and notes on PlotTwist.`
+
+  useSeo({
+    title: isPublicView
+      ? `${profileUsername}'s Bookshelf - PlotTwist`
+      : "My Shelf - PlotTwist",
+    description: isPublicView
+      ? publicDescription
+      : "Manage and personalize your PlotTwist bookshelf.",
+    path: isPublicView ? publicPath : "/shelf",
+    noIndex: !isPublicView,
+    ogType: isPublicView ? "profile" : "website",
+    jsonLd: isPublicView
+      ? {
+        "@context": "https://schema.org",
+        "@type": "ProfilePage",
+        url: `https://plottwist.tech${publicPath}`,
+        mainEntity: {
+          "@type": "Person",
+          name: profileUsername,
+          description: bio || undefined,
+        },
+      }
+      : undefined,
+  })
 
   useEffect(() => {
     if (!user && !isPublicView) return

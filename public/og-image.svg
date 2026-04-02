@@ -1,0 +1,36 @@
+<svg width="1200" height="630" viewBox="0 0 1200 630" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="630" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F8E7B7"/>
+      <stop offset="0.55" stop-color="#F0E4CF"/>
+      <stop offset="1" stop-color="#D8D0C0"/>
+    </linearGradient>
+    <linearGradient id="book1" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#7C3AED"/>
+      <stop offset="1" stop-color="#5B21B6"/>
+    </linearGradient>
+    <linearGradient id="book2" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#EC4899"/>
+      <stop offset="1" stop-color="#BE185D"/>
+    </linearGradient>
+    <linearGradient id="book3" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#2563EB"/>
+      <stop offset="1" stop-color="#1D4ED8"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <ellipse cx="280" cy="120" rx="220" ry="120" fill="#FFFFFF" fill-opacity="0.35"/>
+  <ellipse cx="980" cy="520" rx="260" ry="140" fill="#FFFFFF" fill-opacity="0.2"/>
+
+  <rect x="120" y="452" width="960" height="34" rx="10" fill="#B89B72"/>
+  <rect x="120" y="486" width="960" height="10" rx="4" fill="#8A6D4C" fill-opacity="0.45"/>
+
+  <rect x="220" y="248" width="74" height="204" rx="7" fill="url(#book1)"/>
+  <rect x="302" y="226" width="74" height="226" rx="7" fill="url(#book2)"/>
+  <rect x="384" y="262" width="74" height="190" rx="7" fill="url(#book3)"/>
+
+  <text x="510" y="280" fill="#3D2C1E" font-size="72" font-weight="800" font-family="Segoe UI, Arial, sans-serif">PlotTwist</text>
+  <text x="510" y="338" fill="#5F4A37" font-size="34" font-weight="600" font-family="Segoe UI, Arial, sans-serif">Build and share your digital bookshelf</text>
+  <text x="510" y="392" fill="#6D5847" font-size="24" font-weight="500" font-family="Segoe UI, Arial, sans-serif">Track books. Add notes. Share your shelf.</text>
+</svg>

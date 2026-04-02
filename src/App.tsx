@@ -2,6 +2,7 @@
 import { DataTable } from "@/components/data-table"
 import { SectionCards } from "@/components/section-cards"
 import { SiteHeader } from "@/components/site-header"
+import { useSeo } from "@/hooks/useSeo"
 import {
   SidebarInset,
   SidebarProvider,
@@ -10,6 +11,13 @@ import {
 import data from "./data.json"
 
 export default function App() {
+  useSeo({
+    title: "My Shelf Dashboard - PlotTwist",
+    description: "Manage sections, books, ratings, and notes in your private PlotTwist dashboard.",
+    path: "/home",
+    noIndex: true,
+  })
+
   return (
     <SidebarProvider
       style={

@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { cn } from "@/lib/utils"
+import { useSeo } from "@/hooks/useSeo"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -21,6 +22,13 @@ export function LoginForm({
   ...props
 }: React.ComponentProps<"div">) {
   const [isLoading, setIsLoading] = useState(false)
+
+  useSeo({
+    title: "Sign In - PlotTwist",
+    description: "Sign in to manage your bookshelves, ratings, and reading notes on PlotTwist.",
+    path: "/sign-in",
+    noIndex: true,
+  })
 
   const handleGoogleSignIn = async () => {
     try {

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
 import { useAuth } from "@/hooks/useAuth"
+import { useSeo } from "@/hooks/useSeo"
 
 export function Landing() {
   const { user, loading } = useAuth()
@@ -8,6 +9,31 @@ export function Landing() {
   const [scrollY, setScrollY] = useState(0)
   const [visibleSections, setVisibleSections] = useState<Set<string>>(new Set())
   const observerRefs = useRef<Map<string, HTMLElement>>(new Map())
+
+  useSeo({
+    title: "PlotTwist - Build and Share Your Digital Bookshelf",
+    description:
+      "Organize books into custom shelves, add ratings and notes, and share your public bookshelf with one link.",
+    path: "/",
+    jsonLd: [
+      {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        name: "PlotTwist",
+        url: "https://plottwist.tech",
+      },
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        name: "PlotTwist",
+        applicationCategory: "LifestyleApplication",
+        operatingSystem: "Web",
+        url: "https://plottwist.tech",
+        description:
+          "A digital bookshelf app to organize books, add ratings and notes, and share public shelves.",
+      },
+    ],
+  })
 
   useEffect(() => {
     const observer = new IntersectionObserver(
